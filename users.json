@@ -1,0 +1,4 @@
+[
+  {"name":"Owner","pwHash":"...","role":"owner","securityQuestions":["","",""],"securityAnswers":["","",""]},
+  {"name":"Kay","pw":"123456","role":"user","securityQuestions":["","",""],"securityAnswers":["","",""]}
+]
