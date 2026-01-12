@@ -24,6 +24,8 @@ hr{margin:20px 0}
 .btn-settings:hover {background: #2980b9;}
 .settings-panel {display: none;max-width: 400px;margin: 20px auto;padding: 15px;background: var(--card);border-radius: 10px;box-shadow: 0 4px 8px rgba(0,0,0,0.2);text-align: center;}
 .settings-panel input {width: 90%;margin: 5px 0;padding: 8px;border-radius: 5px;border: 1px solid #ccc;}
+.inbox-card {border:1px solid #ccc;padding:10px;border-radius:8px;margin-bottom:10px;background-color:#f9f9f9;}
+.inbox-card button {margin-top:6px;padding:6px 10px;border:none;border-radius:5px;background:#e74c3c;color:white;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -70,11 +72,13 @@ hr{margin:20px 0}
     <strong>Dark Mode</strong>
     <button class="gray" onclick="toggleDark()">🌙</button>
   </div>
+
   <div class="section">
     <h3>Studio auswählen</h3>
     <select id="studioSelect"></select>
   </div>
 
+  <!-- User Password Change -->
   <div id="userPwArea" class="section hidden">
     <h3>Eigenes Passwort ändern</h3>
     <input id="userOldPw" type="password" placeholder="Altes Passwort">
@@ -82,6 +86,7 @@ hr{margin:20px 0}
     <button onclick="changeOwnPw()">Passwort ändern</button>
   </div>
 
+  <!-- Owner Area -->
   <div id="ownerArea" class="section hidden">
     <h3>Studios verwalten</h3>
     <input id="newStudio" placeholder="Neues Studio">
@@ -94,6 +99,18 @@ hr{margin:20px 0}
     <input id="oldPw" type="password" placeholder="Altes Passwort">
     <input id="newPw" type="password" placeholder="Neues Passwort">
     <button onclick="changeOwnerPw()">Passwort ändern</button>
+
+    <!-- Owner Inbox -->
+    <div id="ownerInboxArea" class="section">
+      <h3>Inbox</h3>
+      <div id="inboxContainer"></div>
+    </div>
+  </div>
+
+  <!-- User Request Area -->
+  <div id="userRequestArea" class="section hidden">
+    <h3>Anfrage an Owner senden</h3>
+    <button onclick="sendOwnerRequest()">Anfrage senden</button>
   </div>
 
   <button class="red" onclick="logout()">Logout</button>
@@ -102,25 +119,40 @@ hr{margin:20px 0}
 
 <script>
 /* INIT */
-let users = JSON.parse(localStorage.getItem('users'));
-let studios = JSON.parse(localStorage.getItem('studios'));
+let users = [];
+let studios = JSON.parse(localStorage.getItem('studios')) || [];
+let ownerInbox = JSON.parse(localStorage.getItem('ownerInbox')) || [];
 let currentUser = null;
 
-if(!users){
-  users = [{name:'Owner',pwHash:null,role:'owner'},{name:'Kay',pw:'123456',role:'user'}];
-  localStorage.setItem('users',JSON.stringify(users));
-}
-if(!studios){
-  studios = [{id:1,name:'Studio Alpha'}];
-  localStorage.setItem('studios',JSON.stringify(studios));
+// GitHub User-Sync
+async function loadUsersFromGitHub() {
+  try {
+    const url = 'https://raw.githubusercontent.com/Kalirusi5511/my-website/main/users.json';
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('Fehler beim Laden der GitHub User-Liste');
+    const githubUsers = await res.json();
+    let localUsers = JSON.parse(localStorage.getItem('users')) || [];
+    githubUsers.forEach(gUser => {
+      if(!localUsers.find(u => u.name===gUser.name)) localUsers.push(gUser);
+    });
+    users = localUsers;
+    localStorage.setItem('users', JSON.stringify(users));
+    console.log('Users aus GitHub geladen');
+  } catch(e){ console.error(e); }
 }
 
-// Sicherstellen, dass jeder User securityQuestions + securityAnswers hat
-users.forEach(u => {
-  if(!u.securityQuestions) u.securityQuestions = ["", "", ""];
-  if(!u.securityAnswers) u.securityAnswers = ["", "", ""];
+// Dashboard Init
+loadUsersFromGitHub().then(() => {
+  if(!users || users.length===0){
+    users = [{name:'Owner',pwHash:null,role:'owner'},{name:'Kay',pw:'123456',role:'user'}];
+    save();
+  }
+  users.forEach(u => {
+    if(!u.securityQuestions) u.securityQuestions = ["","",""];
+    if(!u.securityAnswers) u.securityAnswers = ["","",""];
+  });
+  save();
 });
-save();
 
 /* DARK */
 if(localStorage.getItem('dark')==='1') document.body.classList.add('dark');
@@ -130,22 +162,17 @@ function toggleDark(){document.body.classList.toggle('dark'); localStorage.setIt
 async function sha256(str){const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str)); return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}
 
 /* OWNER DEFAULT PW */
-(async()=>{
-  const o=users.find(u=>u.role==='owner'); 
-  if(o && !o.pwHash){o.pwHash=await sha256('admin'); save();}
-})();
+(async()=>{const o=users.find(u=>u.role==='owner'); if(o && !o.pwHash){o.pwHash = await sha256('admin'); save();}})();
 
-/* LOGIN MIT FLEXIBLEN SECURITY QUESTIONS */
+/* LOGIN */
 async function login(){
   loginError.classList.add('hidden');
   const u=user.value.trim(), p=pass.value;
   const found = users.find(x => x.name===u);
   if(!found) return showError();
-
   let correctPassword=false;
   if(found.role==='owner'){if(await sha256(p)===found.pwHash) correctPassword=true;}
   else if(found.pw===p) correctPassword=true;
-
   if(!correctPassword){
     if(found.securityQuestions && found.securityQuestions.length>0){askSecurityQuestions(found); return;}
     else return showError();
@@ -156,28 +183,13 @@ async function login(){
 function askSecurityQuestions(userObj){
   const nonEmptyQuestions = userObj.securityQuestions.filter(q => q.trim() !== '');
   const answers = [];
-
   for(let i=0;i<nonEmptyQuestions.length;i++){
     let ans = prompt(`Passwort falsch! Beantworte deine Sicherheitsfrage:\n${nonEmptyQuestions[i]}`);
     answers.push(ans ? ans.trim().toLowerCase() : '');
   }
-
-  if(!userObj.securityAnswers){ showError(); return; }
-
   const correctAnswers = userObj.securityAnswers.map(a=>(a||'').trim().toLowerCase()).filter(a=>a!=='');
-
-  const answersSet = new Set(answers.filter(a => a !== ''));
-  const correctSet = new Set(correctAnswers);
-
-  const allCorrect = [...correctSet].every(a => answersSet.has(a));
-
-  if(allCorrect){
-    alert('Sicherheitsfragen korrekt! Login erlaubt.');
-    finishLogin(userObj);
-  } else {
-    alert('Falsche Antworten! Login fehlgeschlagen.');
-    showError();
-  }
+  const allCorrect = correctAnswers.every(a => answers.includes(a));
+  if(allCorrect){ finishLogin(userObj); } else { alert('Falsche Antworten!'); showError(); }
 }
 
 function finishLogin(userObj){
@@ -187,14 +199,16 @@ function finishLogin(userObj){
   welcome.textContent=`Willkommen ${userObj.name} 👋`;
   ownerArea.classList.toggle('hidden', userObj.role!=='owner');
   userPwArea.classList.toggle('hidden', userObj.role==='owner');
+  userRequestArea.classList.toggle('hidden', userObj.role==='owner');
   loadStudios();
   if(!currentUser.securityAnswers) currentUser.securityAnswers=Array.from({length:3},()=> '');
   save();
+  if(currentUser.role==='owner'){ loadOwnerInbox(); }
 }
 
 function showError(){loginError.textContent='Login fehlgeschlagen'; loginError.classList.remove('hidden');}
 
-/* REGISTRIERUNG */
+/* REGISTRATION */
 function register(){
   const u=regUser.value.trim(),p=regPass.value;
   if(!u||!p) return info('Bitte alles ausfüllen',true);
@@ -205,16 +219,12 @@ function register(){
 
 function info(msg,err){regInfo.textContent=msg; regInfo.style.color=err?'#b00020':'#2ecc71';}
 
-/* USER EIGENES PW */
+/* PASSWORD CHANGES */
 function changeOwnPw(){
   if(currentUser.role==='owner') return; 
   if(currentUser.pw!==userOldPw.value) return alert('Falsches Passwort'); 
-  currentUser.pw=userNewPw.value.trim(); 
-  save(); 
-  alert('Passwort geändert');
+  currentUser.pw=userNewPw.value.trim(); save(); alert('Passwort geändert');
 }
-
-/* OWNER - FIXED */
 async function changeOwnerPw(){
   const o = users.find(u => u.role==='owner');
   if(!o) return alert('Owner nicht gefunden!');
@@ -225,9 +235,37 @@ async function changeOwnerPw(){
   alert('Owner Passwort erfolgreich geändert!');
 }
 
+/* SEND REQUEST TO OWNER */
+function sendOwnerRequest(){
+  if(!currentUser || currentUser.role==='owner') return;
+  const msg = prompt("Gib deine Anfrage an den Owner ein:");
+  if(!msg || !msg.trim()) return alert("Keine Nachricht eingegeben.");
+  ownerInbox.push({from: currentUser.name,message: msg.trim(),timestamp: Date.now()});
+  localStorage.setItem('ownerInbox', JSON.stringify(ownerInbox));
+  alert("Anfrage an den Owner gesendet!");
+}
+
 /* STUDIOS */
 function loadStudios(){studioSelect.innerHTML=''; studios.forEach(s=>{const o=document.createElement('option'); o.textContent=s.name; studioSelect.appendChild(o);});}
 function addStudio(){const n=newStudio.value.trim(); if(!n) return; studios.push({id:Date.now(),name:n}); save(); loadStudios();}
+
+/* OWNER INBOX */
+function loadOwnerInbox(){
+  const container = document.getElementById('inboxContainer');
+  container.innerHTML = '';
+  if(ownerInbox.length===0){ container.innerHTML='<p>Keine neuen Anfragen</p>'; return; }
+  ownerInbox.forEach((msg, idx) => {
+    const card = document.createElement('div');
+    card.className='inbox-card';
+    const from = document.createElement('strong'); from.textContent = `Von: ${msg.from}`;
+    const text = document.createElement('p'); text.textContent = msg.message;
+    const time = document.createElement('small'); time.textContent = `Gesendet: ${new Date(msg.timestamp).toLocaleString()}`;
+    const btn = document.createElement('button'); btn.textContent='Als gelesen markieren';
+    btn.onclick = ()=>{ ownerInbox.splice(idx,1); localStorage.setItem('ownerInbox', JSON.stringify(ownerInbox)); loadOwnerInbox(); };
+    card.appendChild(from); card.appendChild(text); card.appendChild(time); card.appendChild(btn);
+    container.appendChild(card);
+  });
+}
 
 /* SAVE / LOGOUT */
 function save(){localStorage.setItem('users',JSON.stringify(users)); localStorage.setItem('studios',JSON.stringify(studios));}
@@ -236,30 +274,24 @@ function logout(){location.reload();}
 /* SETTINGS PANEL */
 const settingsBtn=document.getElementById('settingsBtn');
 const settingsPanel=document.getElementById('settingsPanel');
-
 function toggleSettings(){
   if(!currentUser){alert("Bitte zuerst einloggen!"); return;}
   settingsPanel.style.display=settingsPanel.style.display==='none'?'block':'none';
   if(settingsPanel.style.display==='block') loadSecurityQuestions();
 }
-
 function loadSecurityQuestions(){
   const questions=currentUser.securityQuestions || ["","",""];
   const inputs=document.querySelectorAll('.sec-question');
   inputs.forEach((input,i)=>input.value=questions[i]);
 }
-
 function saveSecurityQuestions(){
   const inputs=document.querySelectorAll('.sec-question');
   currentUser.securityQuestions=Array.from(inputs).map(input=>input.value);
-
   if(!currentUser.securityAnswers || currentUser.securityAnswers.every(a=>"")) 
     currentUser.securityAnswers=Array.from(inputs).map(input=>input.value.toLowerCase().trim());
-
   save();
   alert('Security Questions gespeichert!');
 }
-
 settingsBtn.addEventListener('click', toggleSettings);
 </script>
 </body>
