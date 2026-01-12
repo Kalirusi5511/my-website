@@ -109,8 +109,8 @@ hr{margin:20px 0}
 
   <!-- User Request Area -->
   <div id="userRequestArea" class="section hidden">
-    <h3>Anfrage an Owner senden</h3>
-    <button onclick="sendOwnerRequest()">Anfrage senden</button>
+    <h3>Nachricht an den Owner senden</h3>
+    <button onclick="sendOwnerRequest()">Nachricht senden</button>
   </div>
 
   <button class="red" onclick="logout()">Logout</button>
@@ -238,11 +238,11 @@ async function changeOwnerPw(){
 /* SEND REQUEST TO OWNER */
 function sendOwnerRequest(){
   if(!currentUser || currentUser.role==='owner') return;
-  const msg = prompt("Gib deine Anfrage an den Owner ein:");
+  const msg = prompt("Gib deine Nachricht an den Owner ein:");
   if(!msg || !msg.trim()) return alert("Keine Nachricht eingegeben.");
   ownerInbox.push({from: currentUser.name,message: msg.trim(),timestamp: Date.now()});
   localStorage.setItem('ownerInbox', JSON.stringify(ownerInbox));
-  alert("Anfrage an den Owner gesendet!");
+  alert("Nachricht an den Owner gesendet!");
 }
 
 /* STUDIOS */
