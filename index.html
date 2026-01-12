@@ -38,6 +38,7 @@ hr{margin:20px 0}
   <input id="pass" type="password" placeholder="Passwort">
   <button onclick="login()">Login</button>
   <div id="loginError" class="hidden" style="color:#b00020;font-weight:700"></div>
+  <button onclick="promptResetPassword()">Passwort vergessen?</button>
 
   <hr>
 
@@ -124,7 +125,7 @@ let studios = JSON.parse(localStorage.getItem('studios')) || [];
 let ownerInbox = JSON.parse(localStorage.getItem('ownerInbox')) || [];
 let currentUser = null;
 
-// GitHub User-Sync
+/* GitHub User-Sync */
 async function loadUsersFromGitHub() {
   try {
     const url = 'https://raw.githubusercontent.com/Kalirusi5511/my-website/main/users.json';
@@ -141,7 +142,7 @@ async function loadUsersFromGitHub() {
   } catch(e){ console.error(e); }
 }
 
-// Dashboard Init
+/* Dashboard Init */
 loadUsersFromGitHub().then(() => {
   if(!users || users.length===0){
     users = [{name:'Owner',pwHash:null,role:'owner'},{name:'Kay',pw:'123456',role:'user'}];
@@ -154,7 +155,7 @@ loadUsersFromGitHub().then(() => {
   save();
 });
 
-/* DARK */
+/* DARK MODE */
 if(localStorage.getItem('dark')==='1') document.body.classList.add('dark');
 function toggleDark(){document.body.classList.toggle('dark'); localStorage.setItem('dark',document.body.classList.contains('dark')?'1':'0');}
 
@@ -167,46 +168,65 @@ async function sha256(str){const buf=await crypto.subtle.digest('SHA-256',new Te
 /* LOGIN */
 async function login(){
   loginError.classList.add('hidden');
-  const u=user.value.trim(), p=pass.value;
-  const found = users.find(x => x.name===u);
+  const u = user.value.trim(), p = pass.value;
+  const found = users.find(x => x.name === u);
   if(!found) return showError();
-  let correctPassword=false;
-  if(found.role==='owner'){if(await sha256(p)===found.pwHash) correctPassword=true;}
-  else if(found.pw===p) correctPassword=true;
-  if(!correctPassword){
-    if(found.securityQuestions && found.securityQuestions.length>0){askSecurityQuestions(found); return;}
-    else return showError();
+  let correctPassword = false;
+  if(found.role==='owner'){
+    if(await sha256(p)===found.pwHash) correctPassword=true;
+  } else {
+    if(found.pw===p) correctPassword=true;
   }
+  if(!correctPassword){ showError(); return; }
   finishLogin(found);
 }
+function showError(){
+  loginError.textContent='Login fehlgeschlagen';
+  loginError.classList.remove('hidden');
+}
 
-function askSecurityQuestions(userObj){
-  const nonEmptyQuestions = userObj.securityQuestions.filter(q => q.trim() !== '');
-  const answers = [];
-  for(let i=0;i<nonEmptyQuestions.length;i++){
-    let ans = prompt(`Passwort falsch! Beantworte deine Sicherheitsfrage:\n${nonEmptyQuestions[i]}`);
-    answers.push(ans ? ans.trim().toLowerCase() : '');
+/* PASSWORD RESET VIA SECURITY QUESTIONS */
+function promptResetPassword(){
+  const username = prompt("Gib deinen Username ein:");
+  if(!username) return;
+  resetPasswordWithQuestions(username);
+}
+
+async function resetPasswordWithQuestions(username){
+  const userObj = users.find(u=>u.name===username);
+  if(!userObj) return alert("Benutzer nicht gefunden");
+
+  const nonEmptyQuestions = (userObj.securityQuestions || []).filter(q => q.trim() !== '');
+  if(nonEmptyQuestions.length===0) return alert("Keine Sicherheitsfragen gesetzt");
+
+  for(let i=0; i<nonEmptyQuestions.length; i++){
+    let answer = null;
+    do {
+      answer = prompt(`Beantworte die Sicherheitsfrage:\n${nonEmptyQuestions[i]}`);
+      if(answer === null) return alert("Passwort-Zurücksetzung abgebrochen!");
+      answer = answer.trim();
+    } while(answer === '');
+    if(answer.toLowerCase() !== (userObj.securityAnswers[i]||'').trim().toLowerCase()){
+      return alert("Falsche Antwort! Passwort konnte nicht zurückgesetzt werden.");
+    }
   }
-  const correctAnswers = userObj.securityAnswers.map(a=>(a||'').trim().toLowerCase()).filter(a=>a!=='');
-  const allCorrect = correctAnswers.every(a => answers.includes(a));
-  if(allCorrect){ finishLogin(userObj); } else { alert('Falsche Antworten!'); showError(); }
-}
 
-function finishLogin(userObj){
-  currentUser=userObj;
-  loginBox.classList.add('hidden');
-  app.classList.remove('hidden');
-  welcome.textContent=`Willkommen ${userObj.name} 👋`;
-  ownerArea.classList.toggle('hidden', userObj.role!=='owner');
-  userPwArea.classList.toggle('hidden', userObj.role==='owner');
-  userRequestArea.classList.toggle('hidden', userObj.role==='owner');
-  loadStudios();
-  if(!currentUser.securityAnswers) currentUser.securityAnswers=Array.from({length:3},()=> '');
+  let newPw = null;
+  do {
+    newPw = prompt("Gib dein neues Passwort ein:");
+    if(newPw === null) return alert("Passwort-Zurücksetzung abgebrochen!");
+    newPw = newPw.trim();
+  } while(newPw === '');
+
+  if(userObj.role==='owner'){
+    userObj.pwHash = await sha256(newPw);
+  } else {
+    userObj.pw = newPw;
+  }
+
   save();
-  if(currentUser.role==='owner'){ loadOwnerInbox(); }
+  alert("Passwort erfolgreich zurückgesetzt!");
 }
-
-function showError(){loginError.textContent='Login fehlgeschlagen'; loginError.classList.remove('hidden');}
 
 /* REGISTRATION */
 function register(){
@@ -216,20 +236,20 @@ function register(){
   const newUser={name:u,pw:p,role:'user',securityQuestions:["","",""],securityAnswers:["","",""]};
   users.push(newUser); save(); info('Benutzer erstellt – jetzt einloggen',false); regUser.value=''; regPass.value='';
 }
-
 function info(msg,err){regInfo.textContent=msg; regInfo.style.color=err?'#b00020':'#2ecc71';}
 
-/* PASSWORD CHANGES */
+/* PASSWORD CHANGE */
 function changeOwnPw(){
   if(currentUser.role==='owner') return; 
   if(currentUser.pw!==userOldPw.value) return alert('Falsches Passwort'); 
   currentUser.pw=userNewPw.value.trim(); save(); alert('Passwort geändert');
 }
+
 async function changeOwnerPw(){
   const o = users.find(u => u.role==='owner');
   if(!o) return alert('Owner nicht gefunden!');
   const oldHash = await sha256(oldPw.value);
-  if(oldHash !== o.pwHash) return alert('Falsches altes Passwort!');
+  if(oldHash!==o.pwHash) return alert('Falsches altes Passwort!');
   o.pwHash = await sha256(newPw.value.trim());
   save();
   alert('Owner Passwort erfolgreich geändert!');
@@ -287,12 +307,24 @@ function loadSecurityQuestions(){
 function saveSecurityQuestions(){
   const inputs=document.querySelectorAll('.sec-question');
   currentUser.securityQuestions=Array.from(inputs).map(input=>input.value);
-  if(!currentUser.securityAnswers || currentUser.securityAnswers.every(a=>"")) 
-    currentUser.securityAnswers=Array.from(inputs).map(input=>input.value.toLowerCase().trim());
   save();
   alert('Security Questions gespeichert!');
 }
 settingsBtn.addEventListener('click', toggleSettings);
+
+/* FINISH LOGIN */
+function finishLogin(userObj){
+  currentUser=userObj;
+  loginBox.classList.add('hidden');
+  app.classList.remove('hidden');
+  welcome.textContent=`Willkommen ${userObj.name} 👋`;
+  ownerArea.classList.toggle('hidden', userObj.role!=='owner');
+  userPwArea.classList.toggle('hidden', userObj.role==='owner');
+  userRequestArea.classList.toggle('hidden', userObj.role==='owner');
+  loadStudios();
+  if(currentUser.role==='owner'){ loadOwnerInbox(); }
+  save();
+}
 </script>
 </body>
 </html>
