@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Studio Dashboard</title>
+
+<style>
+:root{--bg:#f4f4f9;--card:#ffffff;--text:#111}
+.dark{--bg:#121212;--card:#1e1e1e;--text:#eee}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,Arial;background:var(--bg);color:var(--text);padding:12px}
+.container{max-width:900px;margin:auto;background:var(--card);padding:18px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.25)}
+h2,h3{text-align:center}
+input,button,select{width:100%;padding:12px;margin:6px 0;border-radius:8px;font-size:15px}
+button{background:#4CAF50;color:white;border:none;font-weight:700}
+button.red{background:#e74c3c}
+button.gray{background:#666}
+.hidden{display:none}
+.welcome{font-size:22px;font-weight:800;text-align:center}
+.section{margin-top:20px}
+.toggle{display:flex;justify-content:space-between;align-items:center}
+hr{margin:20px 0}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<!-- LOGIN -->
+<div id="loginBox">
+  <h2>Login</h2>
+  <input id="user" placeholder="Username">
+  <input id="pass" type="password" placeholder="Passwort">
+  <button onclick="login()">Login</button>
+  <div id="loginError" class="hidden" style="color:#b00020;font-weight:700"></div>
+
+  <hr>
+
+  <h3>Neuen Benutzer erstellen</h3>
+  <input id="regUser" placeholder="Neuer Username">
+  <input id="regPass" type="password" placeholder="Neues Passwort">
+  <button onclick="register()">Registrieren</button>
+  <div id="regInfo" style="font-weight:700"></div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <div id="welcome" class="welcome"></div>
+
+  <div class="toggle">
+    <strong>Dark Mode</strong>
+    <button class="gray" onclick="toggleDark()">🌙</button>
+  </div>
+
+  <div class="section">
+    <h3>Studio auswählen</h3>
+    <select id="studioSelect"></select>
+  </div>
+
+  <!-- USER: EIGENES PASSWORT -->
+  <div id="userPwArea" class="section hidden">
+    <h3>Eigenes Passwort ändern</h3>
+    <input id="userOldPw" type="password" placeholder="Altes Passwort">
+    <input id="userNewPw" type="password" placeholder="Neues Passwort">
+    <button onclick="changeOwnPw()">Passwort ändern</button>
+  </div>
+
+  <!-- OWNER -->
+  <div id="ownerArea" class="section hidden">
+    <h3>Studios verwalten</h3>
+    <input id="newStudio" placeholder="Neues Studio">
+    <button onclick="addStudio()">Studio hinzufügen</button>
+
+    <h3>User hinzufügen</h3>
+    <input id="newUser" placeholder="Username">
+    <input id="newUserPw" placeholder="Passwort">
+    <button onclick="addUser()">User erstellen</button>
+
+    <h3>Owner Passwort ändern</h3>
+    <input id="oldPw" type="password" placeholder="Altes Passwort">
+    <input id="newPw" type="password" placeholder="Neues Passwort">
+    <button onclick="changeOwnerPw()">Passwort ändern</button>
+  </div>
+
+  <button class="red" onclick="logout()">Logout</button>
+</div>
+
+</div>
+
+<script>
+/* INIT */
+let users=JSON.parse(localStorage.getItem('users'));
+let studios=JSON.parse(localStorage.getItem('studios'));
+let currentUser=null;
+
+if(!users){
+  users=[
+    {name:'Owner',pwHash:null,role:'owner'},
+    {name:'Kay',pw:'123456',role:'user'}
+  ];
+  localStorage.setItem('users',JSON.stringify(users));
+}
+
+if(!studios){
+  studios=[{id:1,name:'Studio Alpha'}];
+  localStorage.setItem('studios',JSON.stringify(studios));
+}
+
+/* DARK */
+if(localStorage.getItem('dark')==='1') document.body.classList.add('dark');
+function toggleDark(){
+  document.body.classList.toggle('dark');
+  localStorage.setItem('dark',document.body.classList.contains('dark')?'1':'0');
+}
+
+/* SHA */
+async function sha256(str){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+/* OWNER DEFAULT PW */
+(async()=>{
+  const o=users.find(u=>u.role==='owner');
+  if(o&&!o.pwHash){
+    o.pwHash=await sha256('admin');
+    save();
+  }
+})();
+
+/* LOGIN */
+async function login(){
+  loginError.classList.add('hidden');
+  const u=user.value.trim(),p=pass.value;
+  const found=users.find(x=>x.name===u);
+  if(!found) return showError();
+
+  if(found.role==='owner'){
+    if(await sha256(p)!==found.pwHash) return showError();
+  }else if(found.pw!==p) return showError();
+
+  currentUser=found;
+  loginBox.classList.add('hidden');
+  app.classList.remove('hidden');
+  welcome.textContent=`Willkommen ${found.name} 👋`;
+
+  ownerArea.classList.toggle('hidden',found.role!=='owner');
+  userPwArea.classList.toggle('hidden',found.role==='owner');
+
+  loadStudios();
+}
+
+function showError(){
+  loginError.textContent='Login fehlgeschlagen';
+  loginError.classList.remove('hidden');
+}
+
+/* REGISTRIERUNG */
+function register(){
+  const u=regUser.value.trim(),p=regPass.value;
+  if(!u||!p) return info('Bitte alles ausfüllen',true);
+  if(users.some(x=>x.name===u)) return info('User existiert bereits',true);
+
+  users.push({name:u,pw:p,role:'user'});
+  save();
+  info('Benutzer erstellt – jetzt einloggen',false);
+  regUser.value='';regPass.value='';
+}
+
+function info(msg,err){
+  regInfo.textContent=msg;
+  regInfo.style.color=err?'#b00020':'#2ecc71';
+}
+
+/* USER EIGENES PW */
+function changeOwnPw(){
+  if(currentUser.role==='owner') return;
+  if(currentUser.pw!==userOldPw.value) return alert('Falsches Passwort');
+  currentUser.pw=userNewPw.value.trim();
+  save(); alert('Passwort geändert');
+}
+
+/* OWNER */
+async function changeOwnerPw(){
+  const o=users.find(u=>u.role==='owner');
+  if(await sha256(oldPw.value)!==o.pwHash) return alert('Falsch');
+  o.pwHash=await sha256(newPw.value);
+  save();alert('Owner Passwort geändert');
+}
+
+/* STUDIOS */
+function loadStudios(){
+  studioSelect.innerHTML='';
+  studios.forEach(s=>{
+    const o=document.createElement('option');
+    o.textContent=s.name;
+    studioSelect.appendChild(o);
+  });
+}
+
+function addStudio(){
+  const n=newStudio.value.trim();
+  if(!n) return;
+  studios.push({id:Date.now(),name:n});
+  save();loadStudios();
+}
+
+/* SAVE / LOGOUT */
+function save(){
+  localStorage.setItem('users',JSON.stringify(users));
+  localStorage.setItem('studios',JSON.stringify(studios));
+}
+function logout(){location.reload();}
+</script>
+
+</body>
+</html>
