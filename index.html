@@ -219,8 +219,13 @@ function loadStudiosTable(){
     const statusCircle = `<span class="status-circle ${{
       online:'status-online',work:'status-work',vacation:'status-vacation',neutral:'status-neutral'
     }[s.status]}"></span>${s.status}`;
-    tr.innerHTML=`<td>${s.name}</td><td>${statusCircle}</td><td>${s.owner}</td>
-    <td>${currentUser.role==="owner"?`<button onclick="changeStatus(${i})">Status ändern</button>`:"-"}</td>`;
+
+    let actionBtn = "-";
+    if(currentUser.role==="owner" || s.owner === currentUser.name){
+      actionBtn = `<button onclick="changeStatus(${i})">Status ändern</button>`;
+    }
+
+    tr.innerHTML = `<td>${s.name}</td><td>${statusCircle}</td><td>${s.owner}</td><td>${actionBtn}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -228,8 +233,12 @@ function loadStudiosTable(){
 /* CHANGE STUDIO STATUS */
 function changeStatus(index){
   const s = studios[index];
+  if(currentUser.role !== "owner" && s.owner !== currentUser.name){
+    return alert("Du darfst nur den Status deiner eigenen Studios ändern!");
+  }
   const newStatus = prompt("Neuer Status für "+s.name+" (online/work/vacation/neutral):", s.status);
   if(!newStatus || !["online","work","vacation","neutral"].includes(newStatus)) return alert("Ungültiger Status");
+
   s.status = newStatus;
   save();
   loadStudiosTable();
@@ -241,7 +250,9 @@ function toggleDark(){
   localStorage.setItem("dark",document.body.classList.contains("dark")?"1":"0");
 }
 if(localStorage.getItem("dark")==="1") document.body.classList.add("dark");
+
 function logout(){location.reload();}
+
 function save(){
   localStorage.setItem("users",JSON.stringify(users));
   localStorage.setItem("inbox",JSON.stringify(inbox));
