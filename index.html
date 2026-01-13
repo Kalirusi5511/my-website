@@ -4,31 +4,29 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Studio Dashboard</title>
+
 <style>
 :root{--bg:#f4f4f9;--card:#fff;--text:#111}
 .dark{--bg:#121212;--card:#1e1e1e;--text:#eee}
 *{box-sizing:border-box}
-body{margin:0;font-family:system-ui,Arial;background:var(--bg);color:var(--text);padding:12px}
+body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text);padding:12px}
 .container{max-width:900px;margin:auto;background:var(--card);padding:18px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.25)}
 h2,h3{text-align:center}
-input,button,select{width:100%;padding:12px;margin:6px 0;border-radius:8px;font-size:15px}
-button{background:#4CAF50;color:white;border:none;font-weight:700}
+input,button,select{width:100%;padding:12px;margin:6px 0;border-radius:8px}
+button{background:#4CAF50;color:#fff;border:none;font-weight:700}
 button.red{background:#e74c3c}
 button.gray{background:#666}
 .hidden{display:none}
-.section{margin-top:20px}
-.welcome{text-align:center;font-size:22px;font-weight:800}
-.inbox-card,.studio-card{border:1px solid #ccc;padding:10px;border-radius:8px;margin-bottom:10px}
-.studio-table{width:100%;border-collapse:collapse;margin-top:10px}
-.studio-table th,.studio-table td{border:1px solid #ccc;padding:8px;text-align:center}
-hr{margin:18px 0}
-.status-circle{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:middle}
-.status-online{background:green;}
-.status-work{background:orange;}
-.status-vacation{background:red;}
-.status-neutral{background:blue;}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #ccc;padding:8px;text-align:center}
+.status-circle{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:6px}
+.status-online{background:green}
+.status-work{background:orange}
+.status-vacation{background:red}
+.status-neutral{background:blue}
 </style>
 </head>
+
 <body>
 <div class="container">
 
@@ -39,33 +37,28 @@ hr{margin:18px 0}
   <input id="loginPass" type="password" placeholder="Passwort">
   <button onclick="login()">Login</button>
   <div id="loginError" class="hidden" style="color:#b00020;font-weight:700"></div>
-  <button class="gray" onclick="requestReset()">🔑 Passwort-Reset anfragen</button>
-  <hr>
-  <h3>User erstellen</h3>
-  <input id="quickUser" placeholder="Neuer Username">
-  <button onclick="quickCreateUser()">User erstellen (Auto-Passwort)</button>
+</div>
+
+<!-- 2FA -->
+<div id="twofaBox" class="hidden">
+  <h2>Owner 2FA</h2>
+  <input id="twofaPin" type="password" placeholder="6-stellige PIN">
+  <button onclick="verify2FA()">Bestätigen</button>
 </div>
 
 <!-- APP -->
 <div id="app" class="hidden">
-  <div id="welcome" class="welcome"></div>
-  <div class="section">
-    <button class="gray" onclick="toggleDark()">🌙 Dark Mode</button>
-  </div>
+  <div id="welcome" style="text-align:center;font-size:22px;font-weight:800"></div>
+  <button class="gray" onclick="toggleDark()">🌙 Dark Mode</button>
 
-  <!-- OWNER AREA -->
-  <div id="ownerArea" class="section hidden">
-    <h3>Inbox</h3>
-    <div id="inbox"></div>
-    <hr>
+  <!-- OWNER -->
+  <div id="ownerArea" class="hidden">
+    <h3>Owner Reset (Master)</h3>
+    <input id="masterPw" type="password" placeholder="Master-Passwort">
+    <button onclick="ownerMasterReset()">Owner Passwort neu setzen</button>
+    <div id="newOwnerPwDisplay" class="hidden" style="color:green;font-weight:700"></div>
 
-    <h3>User anlegen (manuell)</h3>
-    <input id="newUser" placeholder="Username">
-    <input id="newUserPw" type="password" placeholder="Passwort">
-    <button onclick="addUser()">User erstellen</button>
-    <hr>
-
-    <h3>Studios erstellen</h3>
+    <h3>Studio erstellen</h3>
     <input id="studioName" placeholder="Studio Name">
     <select id="studioStatus">
       <option value="online">Online</option>
@@ -74,187 +67,188 @@ hr{margin:18px 0}
       <option value="neutral">Neutral</option>
     </select>
     <button onclick="addStudio()">Studio hinzufügen</button>
-    <hr>
-
-    <h3>Owner-Passwort zurücksetzen</h3>
-    <input id="masterPw" type="password" placeholder="Master-Passwort eingeben">
-    <button onclick="ownerMasterReset()">Owner zurücksetzen</button>
-    <div id="newOwnerPwDisplay" class="hidden" style="margin-top:8px;font-weight:700;color:green"></div>
   </div>
 
-  <!-- STUDIOS -->
-  <div class="section">
-    <h3>Studios Übersicht</h3>
-    <table class="studio-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Status</th>
-          <th>Erstellt von</th>
-          <th>Aktion</th>
-        </tr>
-      </thead>
-      <tbody id="studioTableBody"></tbody>
-    </table>
-  </div>
+  <h3>Studios</h3>
+  <table>
+    <thead><tr><th>Name</th><th>Status</th><th>Owner</th><th>Aktion</th></tr></thead>
+    <tbody id="studioTable"></tbody>
+  </table>
 
   <button class="red" onclick="logout()">Logout</button>
 </div>
 </div>
 
 <script>
-let users = [];
-let inbox = JSON.parse(localStorage.getItem("inbox")) || [];
+/* ========= CONFIG ========= */
+const MASTER_PASSWORD = "supersecure123";
+const SECURITY_INTERVAL = 5000;
+const OWNER_2FA_TIMEOUT = 5 * 60 * 1000;
+
+/* ========= STATE ========= */
+let users = JSON.parse(localStorage.getItem("users")) || [];
 let studios = JSON.parse(localStorage.getItem("studios")) || [];
+let session = JSON.parse(localStorage.getItem("session"));
 let currentUser = null;
 
-/* HASH */
+/* ========= HASH ========= */
 async function sha256(s){
   const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,"0")).join("");
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
 }
 
-/* MASTER PASSWORD */
-const MASTER_PASSWORD = "supersecure123"; // <- Hier Master-Passwort eintragen
-
-/* INIT */
-(async function(){
-  let local = JSON.parse(localStorage.getItem("users")) || [];
-  if(!local.length){
-    local = [{name:"Owner", role:"owner", pwHash: await sha256("admin")}];
+/* ========= INIT ========= */
+(async()=>{
+  if(!users.find(u=>u.name==="Owner")){
+    users.push({name:"Owner",role:"owner",pwHash:await sha256("admin"),pinHash:null});
+    save();
   }
-  users = local;
-  save();
-  loadStudiosTable();
+  restoreSession();
+  startSecurityWatchdog();
 })();
 
-/* LOGIN */
+/* ========= LOGIN ========= */
 async function login(){
-  const u = loginUser.value.trim();
-  const p = loginPass.value;
-  const f = users.find(x => x.name===u);
-  if(!f || await sha256(p)!==f.pwHash) return fail();
-  currentUser = f;
+  const u=loginUser.value.trim(), p=loginPass.value;
+
+  if(u==="Owner" && p===MASTER_PASSWORD){
+    startSession(users.find(x=>x.name==="Owner"));
+    return;
+  }
+
+  const f=users.find(x=>x.name===u);
+  if(!f||await sha256(p)!==f.pwHash){
+    loginError.textContent="Login fehlgeschlagen";
+    loginError.classList.remove("hidden");
+    return;
+  }
+  startSession(f);
+}
+
+function startSession(user){
+  currentUser=user;
+  session={token:crypto.randomUUID(),user:user.name,role:user.role,time:Date.now()};
+  localStorage.setItem("session",JSON.stringify(session));
+
+  if(user.role==="owner"){
+    require2FA();
+  } else {
+    showApp();
+  }
+}
+
+/* ========= 2FA ========= */
+function require2FA(){
   loginBox.classList.add("hidden");
-  app.classList.remove("hidden");
-  welcome.textContent = `Willkommen ${f.name}`;
-  ownerArea.classList.toggle("hidden", f.role !== "owner");
-  loadInbox();
-  loadStudiosTable();
+  twofaBox.classList.remove("hidden");
 }
 
-function fail(){
-  loginError.textContent = "Login fehlgeschlagen";
-  loginError.classList.remove("hidden");
+async function verify2FA(){
+  const pin=twofaPin.value.trim();
+  if(pin.length<4) return alert("PIN ungültig");
+
+  if(!currentUser.pinHash){
+    currentUser.pinHash=await sha256(pin);
+    save();
+  } else if(await sha256(pin)!==currentUser.pinHash){
+    return alert("Falsche PIN");
+  }
+
+  session.twofaUntil=Date.now()+OWNER_2FA_TIMEOUT;
+  localStorage.setItem("session",JSON.stringify(session));
+  twofaBox.classList.add("hidden");
+  showApp();
 }
 
-/* RESET REQUEST */
-function requestReset(){
-  const u = prompt("Username eingeben:");
-  if(!u) return;
-  const user = users.find(x => x.name===u);
-  if(!user) return alert("User nicht gefunden");
-  inbox.push({type:"reset", user:u, time:Date.now()});
-  save();
-  alert("Reset-Anfrage gesendet");
+/* ========= SESSION RESTORE ========= */
+function restoreSession(){
+  if(!session) return;
+  const u=users.find(x=>x.name===session.user);
+  if(!u||u.role!==session.role) return forceLogout();
+  currentUser=u;
+
+  if(u.role==="owner" && (!session.twofaUntil || Date.now()>session.twofaUntil)){
+    require2FA();
+  } else {
+    showApp();
+  }
 }
 
-/* QUICK USER CREATOR */
-async function quickCreateUser(){
-  const name = quickUser.value.trim();
-  if(!name) return alert("Username fehlt");
-  if(users.find(u => u.name===name)) return alert("User existiert bereits");
-  const plainPw = "user_" + Date.now();
-  users.push({name, role:"user", pwHash: await sha256(plainPw)});
-  save();
-  alert(`User erstellt!\nUsername: ${name}\nPasswort: ${plainPw}`);
-  quickUser.value = "";
+/* ========= SECURITY WATCHDOG ========= */
+function startSecurityWatchdog(){
+  setInterval(()=>{
+    const s=JSON.parse(localStorage.getItem("session"));
+    if(!s) return forceLogout();
+    const u=users.find(x=>x.name===s.user);
+    if(!u||u.role!==s.role) forceLogout();
+    if(u.role==="owner" && Date.now()>s.twofaUntil) forceLogout();
+  },SECURITY_INTERVAL);
 }
 
-/* OWNER RESET */
-async function ownerReset(username,index){
-  const u = users.find(x => x.name===username);
-  if(!u) return alert("User existiert nicht mehr");
-  const np = prompt("Neues Passwort für "+username+":");
-  if(!np) return;
-  u.pwHash = await sha256(np);
-  inbox.splice(index,1);
-  save();
-  loadInbox();
-  alert("Passwort geändert");
-}
-
-/* OWNER MASTER RESET */
+/* ========= OWNER RESET ========= */
 async function ownerMasterReset(){
-  const entered = document.getElementById("masterPw").value;
-  if(entered !== MASTER_PASSWORD) return alert("Falsches Master-Passwort!");
-  const ownerUser = users.find(u => u.role==="owner");
-  if(!ownerUser) return alert("Owner existiert nicht");
-  const newPw = "owner_" + Date.now();
-  ownerUser.pwHash = await sha256(newPw);
+  if(masterPw.value!==MASTER_PASSWORD) return alert("Falsches Master-Passwort");
+  const owner=users.find(u=>u.role==="owner");
+  const np="owner_"+Date.now();
+  owner.pwHash=await sha256(np);
   save();
-  const display = document.getElementById("newOwnerPwDisplay");
-  display.textContent = "Neues Owner-Passwort: " + newPw;
-  display.classList.remove("hidden");
-  document.getElementById("masterPw").value = "";
+  newOwnerPwDisplay.textContent="Neues Owner Passwort: "+np;
+  newOwnerPwDisplay.classList.remove("hidden");
 }
 
-/* OWNER MANUELL */
-async function addUser(){
-  if(!newUser.value || !newUserPw.value) return;
-  if(users.find(u => u.name===newUser.value)) return alert("User existiert bereits");
-  users.push({name:newUser.value, role:"user", pwHash: await sha256(newUserPw.value)});
-  save();
-  alert("User erstellt");
-  newUser.value = ""; newUserPw.value = "";
-}
-
-/* CREATE STUDIO */
+/* ========= STUDIOS ========= */
 function addStudio(){
-  if(!studioName.value) return alert("Studio Name fehlt");
-  studios.push({name:studioName.value, status:studioStatus.value, owner:currentUser.name});
-  save();
-  studioName.value = "";
-  loadStudiosTable();
+  studios.push({name:studioName.value,status:studioStatus.value,owner:currentUser.name});
+  save(); loadStudios();
 }
 
-/* LOAD STUDIOS */
-function loadStudiosTable(){
-  const tbody = document.getElementById("studioTableBody");
-  tbody.innerHTML = "";
+function loadStudios(){
+  studioTable.innerHTML="";
   studios.forEach((s,i)=>{
-    const tr = document.createElement("tr");
-    const statusCircle = `<span class="status-circle ${{
-      online:'status-online',work:'status-work',vacation:'status-vacation',neutral:'status-neutral'
-    }[s.status]}"></span>${s.status}`;
-    let canEdit = (currentUser.role==="owner") || (currentUser.name===s.owner);
-    tr.innerHTML = `<td>${s.name}</td><td>${statusCircle}</td><td>${s.owner}</td>
-      <td>${canEdit?`<button onclick="changeStatus(${i})">Status ändern</button>`:"-"}</td>`;
-    tbody.appendChild(tr);
+    const can=currentUser.role==="owner"||currentUser.name===s.owner;
+    studioTable.innerHTML+=`
+    <tr>
+      <td>${s.name}</td>
+      <td><span class="status-circle status-${s.status}"></span>${s.status}</td>
+      <td>${s.owner}</td>
+      <td>${can?`<button onclick="changeStatus(${i})">Ändern</button>`:"-"}</td>
+    </tr>`;
   });
 }
 
-/* CHANGE STUDIO STATUS */
-function changeStatus(index){
-  const s = studios[index];
-  const newStatus = prompt("Neuer Status für "+s.name+" (online/work/vacation/neutral):", s.status);
-  if(!newStatus || !["online","work","vacation","neutral"].includes(newStatus)) return alert("Ungültiger Status");
-  s.status = newStatus;
-  save();
-  loadStudiosTable();
+function changeStatus(i){
+  const ns=prompt("online/work/vacation/neutral",studios[i].status);
+  if(["online","work","vacation","neutral"].includes(ns)){
+    studios[i].status=ns; save(); loadStudios();
+  }
 }
 
-/* UTIL */
+/* ========= UI ========= */
+function showApp(){
+  loginBox.classList.add("hidden");
+  twofaBox.classList.add("hidden");
+  app.classList.remove("hidden");
+  welcome.textContent="Willkommen "+currentUser.name;
+  ownerArea.classList.toggle("hidden",currentUser.role!=="owner");
+  loadStudios();
+}
+
 function toggleDark(){
   document.body.classList.toggle("dark");
-  localStorage.setItem("dark", document.body.classList.contains("dark")?"1":"0");
+  localStorage.setItem("dark",document.body.classList.contains("dark")?"1":"0");
 }
 if(localStorage.getItem("dark")==="1") document.body.classList.add("dark");
-function logout(){location.reload();}
+
+/* ========= LOGOUT ========= */
+function logout(){forceLogout();}
+function forceLogout(){
+  localStorage.removeItem("session");
+  location.reload();
+}
+
 function save(){
-  localStorage.setItem("users", JSON.stringify(users));
-  localStorage.setItem("inbox", JSON.stringify(inbox));
-  localStorage.setItem("studios", JSON.stringify(studios));
+  localStorage.setItem("users",JSON.stringify(users));
+  localStorage.setItem("studios",JSON.stringify(studios));
 }
 </script>
 </body>
