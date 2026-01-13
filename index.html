@@ -26,6 +26,13 @@ hr{margin:20px 0}
 .settings-panel input {width: 90%;margin: 5px 0;padding: 8px;border-radius: 5px;border: 1px solid #ccc;}
 .inbox-card {border:1px solid #ccc;padding:10px;border-radius:8px;margin-bottom:10px;background-color:#f9f9f9;}
 .inbox-card button {margin-top:6px;padding:6px 10px;border:none;border-radius:5px;background:#e74c3c;color:white;cursor:pointer;}
+
+/* Statuskreise für Mitglieder */
+.status-circle {display: inline-block;width: 12px;height: 12px;border-radius: 50%;margin-right: 8px;}
+.status-im {background-color: #2ecc71;}      /* Im Studio → grün */
+.status-abwesend {background-color: #f1c40f;} /* Abwesend → gelb */
+.status-test {background-color: #3498db;}   /* Im Test-System → blau */
+.status-urlaub {background-color: #e74c3c;} /* Urlaub → rot */
 </style>
 </head>
 <body>
@@ -78,7 +85,42 @@ hr{margin:20px 0}
     <select id="studioSelect"></select>
   </div>
 
-  <!-- User Password Change -->
+  <!-- User Studio Funktionen -->
+  <div id="userStudioArea" class="section">
+    <h3>Eigenes Studio erstellen</h3>
+    <input id="userNewStudio" placeholder="Studio Name">
+    <button onclick="addUserStudio()">Studio erstellen</button>
+  </div>
+
+  <div id="userStudioStatus" class="section hidden">
+    <h3>Mein Status im Studio</h3>
+    <select id="userStatusSelect" onchange="setUserStatus()">
+      <option>Im Studio</option>
+      <option>Abwesend</option>
+      <option>Im Test-System</option>
+      <option>Urlaub</option>
+    </select>
+  </div>
+
+  <div id="studioUsers" class="section hidden">
+    <h3>Studio-Mitglieder</h3>
+    <ul id="studioUserList"></ul>
+  </div>
+
+  <div id="studioMessage" class="section hidden">
+    <h3>Nachricht an Studio-Mitglieder</h3>
+    <input id="msgText" placeholder="Deine Nachricht">
+    <button onclick="sendStudioMessage()">Senden</button>
+  </div>
+
+  <div id="studioMessages" class="section hidden">
+    <h3>Studio-Nachrichten</h3>
+    <ul id="msgList"></ul>
+  </div>
+
+  <button id="leaveStudioBtn" class="red hidden" onclick="leaveStudio()">Studio verlassen</button>
+
+  <!-- User Passwort ändern -->
   <div id="userPwArea" class="section hidden">
     <h3>Eigenes Passwort ändern</h3>
     <input id="userOldPw" type="password" placeholder="Altes Passwort">
@@ -100,7 +142,6 @@ hr{margin:20px 0}
     <input id="newPw" type="password" placeholder="Neues Passwort">
     <button onclick="changeOwnerPw()">Passwort ändern</button>
 
-    <!-- Owner Inbox -->
     <div id="ownerInboxArea" class="section">
       <h3>Inbox</h3>
       <div id="inboxContainer"></div>
@@ -118,13 +159,13 @@ hr{margin:20px 0}
 </div>
 
 <script>
-/* INIT */
+/* ----------------- INIT ----------------- */
 let users = [];
 let studios = JSON.parse(localStorage.getItem('studios')) || [];
 let ownerInbox = JSON.parse(localStorage.getItem('ownerInbox')) || [];
 let currentUser = null;
 
-// GitHub User-Sync
+/* GitHub User-Sync */
 async function loadUsersFromGitHub() {
   try {
     const url = 'https://raw.githubusercontent.com/Kalirusi5511/my-website/main/users.json';
@@ -137,11 +178,9 @@ async function loadUsersFromGitHub() {
     });
     users = localUsers;
     localStorage.setItem('users', JSON.stringify(users));
-    console.log('Users aus GitHub geladen');
   } catch(e){ console.error(e); }
 }
 
-// Dashboard Init
 loadUsersFromGitHub().then(() => {
   if(!users || users.length===0){
     users = [{name:'Owner',pwHash:null,role:'owner'},{name:'Kay',pw:'123456',role:'user'}];
@@ -154,17 +193,17 @@ loadUsersFromGitHub().then(() => {
   save();
 });
 
-/* DARK */
+/* DARK MODE */
 if(localStorage.getItem('dark')==='1') document.body.classList.add('dark');
 function toggleDark(){document.body.classList.toggle('dark'); localStorage.setItem('dark',document.body.classList.contains('dark')?'1':'0');}
 
-/* SHA */
+/* SHA256 */
 async function sha256(str){const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str)); return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}
 
 /* OWNER DEFAULT PW */
 (async()=>{const o=users.find(u=>u.role==='owner'); if(o && !o.pwHash){o.pwHash = await sha256('admin'); save();}})();
 
-/* LOGIN */
+/* ----------------- LOGIN ----------------- */
 async function login(){
   loginError.classList.add('hidden');
   const u=user.value.trim(), p=pass.value;
@@ -188,6 +227,7 @@ function askSecurityQuestions(userObj){
     answers.push(ans ? ans.trim().toLowerCase() : '');
   }
   const correctAnswers = userObj.securityAnswers.map(a=>(a||'').trim().toLowerCase()).filter(a=>a!=='');
+
   const allCorrect = correctAnswers.every(a => answers.includes(a));
   if(allCorrect){ finishLogin(userObj); } else { alert('Falsche Antworten!'); showError(); }
 }
@@ -206,9 +246,7 @@ function finishLogin(userObj){
   if(currentUser.role==='owner'){ loadOwnerInbox(); }
 }
 
-function showError(){loginError.textContent='Login fehlgeschlagen'; loginError.classList.remove('hidden');}
-
-/* REGISTRATION */
+/* ----------------- REGISTRATION ----------------- */
 function register(){
   const u=regUser.value.trim(),p=regPass.value;
   if(!u||!p) return info('Bitte alles ausfüllen',true);
@@ -219,12 +257,13 @@ function register(){
 
 function info(msg,err){regInfo.textContent=msg; regInfo.style.color=err?'#b00020':'#2ecc71';}
 
-/* PASSWORD CHANGES */
+/* ----------------- PASSWORD CHANGES ----------------- */
 function changeOwnPw(){
   if(currentUser.role==='owner') return; 
   if(currentUser.pw!==userOldPw.value) return alert('Falsches Passwort'); 
   currentUser.pw=userNewPw.value.trim(); save(); alert('Passwort geändert');
 }
+
 async function changeOwnerPw(){
   const o = users.find(u => u.role==='owner');
   if(!o) return alert('Owner nicht gefunden!');
@@ -235,7 +274,7 @@ async function changeOwnerPw(){
   alert('Owner Passwort erfolgreich geändert!');
 }
 
-/* SEND REQUEST TO OWNER */
+/* ----------------- OWNER INBOX ----------------- */
 function sendOwnerRequest(){
   if(!currentUser || currentUser.role==='owner') return;
   const msg = prompt("Gib deine Nachricht an den Owner ein:");
@@ -245,11 +284,6 @@ function sendOwnerRequest(){
   alert("Nachricht an den Owner gesendet!");
 }
 
-/* STUDIOS */
-function loadStudios(){studioSelect.innerHTML=''; studios.forEach(s=>{const o=document.createElement('option'); o.textContent=s.name; studioSelect.appendChild(o);});}
-function addStudio(){const n=newStudio.value.trim(); if(!n) return; studios.push({id:Date.now(),name:n}); save(); loadStudios();}
-
-/* OWNER INBOX */
 function loadOwnerInbox(){
   const container = document.getElementById('inboxContainer');
   container.innerHTML = '';
@@ -267,11 +301,11 @@ function loadOwnerInbox(){
   });
 }
 
-/* SAVE / LOGOUT */
+/* ----------------- SAVE / LOGOUT ----------------- */
 function save(){localStorage.setItem('users',JSON.stringify(users)); localStorage.setItem('studios',JSON.stringify(studios));}
 function logout(){location.reload();}
 
-/* SETTINGS PANEL */
+/* ----------------- SETTINGS PANEL ----------------- */
 const settingsBtn=document.getElementById('settingsBtn');
 const settingsPanel=document.getElementById('settingsPanel');
 function toggleSettings(){
@@ -293,6 +327,156 @@ function saveSecurityQuestions(){
   alert('Security Questions gespeichert!');
 }
 settingsBtn.addEventListener('click', toggleSettings);
+
+/* ----------------- USER STUDIO FUNKTIONEN ----------------- */
+function loadStudios(){
+  studioSelect.innerHTML='';
+  studios.forEach(s=>{
+    const o=document.createElement('option');
+    o.textContent=s.name;
+    o.value=s.id;
+    studioSelect.appendChild(o);
+  });
+}
+
+function addStudio(){
+  const n=newStudio.value.trim();
+  if(!n) return;
+  studios.push({id:Date.now(),name:n,users:[],messages:[]});
+  save(); loadStudios();
+}
+
+// Neues Studio für User erstellen
+function addUserStudio(){
+  const name = userNewStudio.value.trim();
+  if(!name) return alert("Bitte einen Namen eingeben");
+
+  const newStudio = {
+    id: Date.now(),
+    name: name,
+    owner: currentUser.name,
+    users: [{name: currentUser.name, status: 'Im Studio'}],
+    messages: []
+  };
+
+  studios.push(newStudio);
+  save(); loadStudios();
+  userNewStudio.value = '';
+  alert("Studio erstellt!");
+  studioSelect.value = newStudio.id;
+  showUserStudioSections();
+  renderStudioUsers();
+  renderStudioMessages();
+}
+
+function setUserStatus(){
+  const studio = studios.find(s => s.id == studioSelect.value);
+  if(!studio) return;
+  let userEntry = studio.users.find(u => u.name === currentUser.name);
+  if(!userEntry){
+    userEntry = {name: currentUser.name, status: 'Im Studio'};
+    studio.users.push(userEntry);
+  }
+  userEntry.status = userStatusSelect.value;
+  save();
+  renderStudioUsers();
+  colorUserStatusDropdown(); // Dropdown ebenfalls einfärben
+}
+
+// Statuskreise rendern
+function renderStudioUsers(){
+  const studio = studios.find(s => s.id == studioSelect.value);
+  if(!studio) return;
+  studioUsers.classList.remove('hidden');
+  studioUserList.innerHTML = '';
+
+  studio.users.forEach(u=>{
+    const li = document.createElement('li');
+    const circle = document.createElement('span');
+    circle.className = 'status-circle';
+
+    // Statusfarbe setzen
+    switch(u.status){
+      case 'Im Studio': circle.classList.add('status-im'); break;
+      case 'Abwesend': circle.classList.add('status-abwesend'); break;
+      case 'Im Test-System': circle.classList.add('status-test'); break;
+      case 'Urlaub': circle.classList.add('status-urlaub'); break;
+      default: circle.style.backgroundColor = '#ccc';
+    }
+
+    li.appendChild(circle);
+    li.appendChild(document.createTextNode(`${u.name} - ${u.status}`));
+    studioUserList.appendChild(li);
+  });
+}
+
+// Dropdown farblich markieren
+function colorUserStatusDropdown(){
+  const val = userStatusSelect.value;
+  switch(val){
+    case 'Im Studio': userStatusSelect.style.backgroundColor='#2ecc71'; break;
+    case 'Abwesend': userStatusSelect.style.backgroundColor='#f1c40f'; break;
+    case 'Im Test-System': userStatusSelect.style.backgroundColor='#3498db'; break;
+    case 'Urlaub': userStatusSelect.style.backgroundColor='#e74c3c'; break;
+    default: userStatusSelect.style.backgroundColor='#fff';
+  }
+}
+
+function sendStudioMessage(){
+  const text = msgText.value.trim();
+  if(!text) return alert("Nachricht eingeben!");
+  const studio = studios.find(s => s.id == studioSelect.value);
+  if(!studio.messages) studio.messages = [];
+  studio.messages.push({from: currentUser.name, text, time: Date.now()});
+  save();
+  msgText.value = '';
+  renderStudioMessages();
+}
+
+function renderStudioMessages(){
+  const studio = studios.find(s => s.id == studioSelect.value);
+  if(!studio || !studio.messages) return;
+  studioMessages.classList.remove('hidden');
+  msgList.innerHTML = '';
+  studio.messages.forEach(m=>{
+    const li = document.createElement('li');
+    li.textContent = `[${new Date(m.time).toLocaleTimeString()}] ${m.from}: ${m.text}`;
+    msgList.appendChild(li);
+  });
+}
+
+function leaveStudio(){
+  const studio = studios.find(s => s.id == studioSelect.value);
+  if(!studio) return;
+  studio.users = studio.users.filter(u => u.name !== currentUser.name);
+  save();
+  renderStudioUsers();
+  alert("Du hast das Studio verlassen.");
+  studioUsers.classList.add('hidden');
+  studioMessages.classList.add('hidden');
+  userStudioStatus.classList.add('hidden');
+  leaveStudioBtn.classList.add('hidden');
+}
+
+function showUserStudioSections(){
+  userStudioStatus.classList.remove('hidden');
+  leaveStudioBtn.classList.remove('hidden');
+  studioUsers.classList.remove('hidden');
+  studioMessage.classList.remove('hidden');
+  studioMessages.classList.remove('hidden');
+  colorUserStatusDropdown(); // Dropdown gleich einfärben
+}
+
+// Beim Studio-Wechsel
+studioSelect.onchange = ()=>{
+  const studio = studios.find(s => s.id == studioSelect.value);
+  if(!studio) return;
+  showUserStudioSections();
+  const userEntry = studio.users.find(u => u.name === currentUser.name);
+  userStatusSelect.value = userEntry ? userEntry.status : 'Im Studio';
+  renderStudioUsers();
+  renderStudioMessages();
+};
 </script>
 </body>
 </html>
