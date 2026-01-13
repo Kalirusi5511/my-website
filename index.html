@@ -67,6 +67,10 @@ button.gray{background:#666}
   <div class="section">
     <h3>Studios</h3>
     <select id="studioSelect"></select>
+    <div id="ownerStudio" class="hidden">
+      <input id="newStudio" placeholder="Neues Studio">
+      <button onclick="addStudio()">Studio hinzufügen</button>
+    </div>
   </div>
 
   <!-- USER MESSAGE -->
@@ -81,10 +85,6 @@ button.gray{background:#666}
     <input id="newUserPw" type="password" placeholder="Passwort">
     <button onclick="addUser()">User erstellen</button>
 
-    <h3>Studio hinzufügen</h3>
-    <input id="newStudio" placeholder="Studio Name">
-    <button onclick="addStudio()">Studio hinzufügen</button>
-
     <h3>Inbox</h3>
     <div id="inbox"></div>
   </div>
@@ -94,9 +94,11 @@ button.gray{background:#666}
 </div>
 
 <script>
-let users=[], studios=JSON.parse(localStorage.getItem("studios"))||[];
+let users=[];
+let studios=JSON.parse(localStorage.getItem("studios"))||[];
 let inbox=JSON.parse(localStorage.getItem("inbox"))||[];
-let currentUser=null, resetUser=null;
+let currentUser=null;
+let resetUser=null;
 
 /* HASH */
 async function sha256(s){
@@ -104,32 +106,57 @@ async function sha256(s){
   return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
 }
 
-/* INIT + MIGRATION */
-(async function(){
+/* INIT + MIGRATION (FIXED) */
+async function initUsers(){
   let local=JSON.parse(localStorage.getItem("users"))||[];
-  if(!local.length){
-    local=[{name:"Owner",role:"owner",pwHash:await sha256("admin"),securityQuestions:[],securityAnswers:[]}];
+
+  if(local.length===0){
+    local=[{
+      name:"Owner",
+      role:"owner",
+      pwHash:await sha256("admin"),
+      securityQuestions:[],
+      securityAnswers:[]
+    }];
   }
+
   for(const u of local){
-    if(u.pw){u.pwHash=await sha256(u.pw);delete u.pw;}
-    u.securityQuestions??=[];u.securityAnswers??=[];
-    u.securityAnswers=await Promise.all(u.securityAnswers.map(a=>a.length===64?a:sha256(a)));
+    if(u.pw){
+      u.pwHash=await sha256(u.pw);
+      delete u.pw;
+    }
+    u.securityQuestions??=[];
+    u.securityAnswers??=[];
+    u.securityAnswers=await Promise.all(
+      u.securityAnswers.map(a=>a&&a.length===64?a:sha256(a||""))
+    );
   }
-  users=local;save();
-})();
+
+  users=local;
+  save();
+}
+initUsers();
 
 /* LOGIN */
 async function login(){
-  const u=loginUser.value.trim(),p=loginPass.value;
+  const u=loginUser.value.trim();
+  const p=loginPass.value;
   const f=users.find(x=>x.name===u);
   if(!f||await sha256(p)!==f.pwHash)return fail();
+
   currentUser=f;
   loginBox.classList.add("hidden");
   app.classList.remove("hidden");
   welcome.textContent=`Willkommen ${f.name}`;
   ownerArea.classList.toggle("hidden",f.role!=="owner");
+  ownerStudio.classList.toggle("hidden",f.role!=="owner");
   userRequestArea.classList.toggle("hidden",f.role==="owner");
   loadStudios(); loadInbox(); loadSettings();
+}
+
+function fail(){
+  loginError.textContent="Login fehlgeschlagen";
+  loginError.classList.remove("hidden");
 }
 
 /* RESET */
@@ -137,18 +164,26 @@ function startReset(){
   const n=prompt("Username:");
   resetUser=users.find(u=>u.name===n);
   if(!resetUser||!resetUser.securityQuestions.length)return alert("Nicht möglich");
-  loginBox.classList.add("hidden"); resetBox.classList.remove("hidden");
+
+  loginBox.classList.add("hidden");
+  resetBox.classList.remove("hidden");
   resetQuestions.innerHTML="";
   resetUser.securityQuestions.forEach((q,i)=>{
-    const inp=document.createElement("input");inp.placeholder=q;inp.dataset.i=i;
+    const inp=document.createElement("input");
+    inp.placeholder=q;
+    inp.dataset.i=i;
     resetQuestions.appendChild(inp);
   });
 }
+
 async function confirmReset(){
   for(const i of resetQuestions.querySelectorAll("input")){
-    if(await sha256(i.value)!==resetUser.securityAnswers[i.dataset.i])return alert("Falsch");
+    if(await sha256(i.value)!==resetUser.securityAnswers[i.dataset.i])
+      return alert("Falsche Antwort");
   }
-  resetUser.pwHash=await sha256(resetNewPw.value); save(); location.reload();
+  resetUser.pwHash=await sha256(resetNewPw.value);
+  save();
+  location.reload();
 }
 
 /* SETTINGS */
@@ -166,20 +201,31 @@ async function saveSecurityQuestions(){
 /* STUDIOS */
 function loadStudios(){
   studioSelect.innerHTML="";
-  studios.forEach(s=>{const o=document.createElement("option");o.textContent=s;studioSelect.appendChild(o);});
+  studios.forEach(s=>{
+    const o=document.createElement("option");
+    o.textContent=s;
+    studioSelect.appendChild(o);
+  });
 }
-function addStudio(){studios.push(newStudio.value);save();loadStudios();}
+function addStudio(){
+  if(!newStudio.value)return;
+  studios.push(newStudio.value);
+  save(); loadStudios();
+}
 
 /* INBOX */
 function sendMessage(){
   const m=prompt("Nachricht:");
-  inbox.push({from:currentUser.name,msg:m}); save(); alert("Gesendet");
+  if(!m)return;
+  inbox.push({from:currentUser.name,msg:m,time:Date.now()});
+  save(); alert("Gesendet");
 }
 function loadInbox(){
   if(currentUser.role!=="owner")return;
   inbox.innerHTML="";
-  inbox.forEach((m,i)=>{
-    const d=document.createElement("div");d.className="inbox-card";
+  inbox.forEach(m=>{
+    const d=document.createElement("div");
+    d.className="inbox-card";
     d.textContent=`${m.from}: ${m.msg}`;
     inbox.appendChild(d);
   });
@@ -187,14 +233,23 @@ function loadInbox(){
 
 /* OWNER */
 async function addUser(){
-  users.push({name:newUser.value,role:"user",pwHash:await sha256(newUserPw.value),securityQuestions:[],securityAnswers:[]});
+  users.push({
+    name:newUser.value,
+    role:"user",
+    pwHash:await sha256(newUserPw.value),
+    securityQuestions:[],
+    securityAnswers:[]
+  });
   save(); alert("User erstellt");
 }
 
 /* UTIL */
-function toggleDark(){document.body.classList.toggle("dark");localStorage.setItem("dark",document.body.classList.contains("dark")?"1":"0");}
+function toggleDark(){
+  document.body.classList.toggle("dark");
+  localStorage.setItem("dark",document.body.classList.contains("dark")?"1":"0");
+}
 if(localStorage.getItem("dark")==="1")document.body.classList.add("dark");
-function fail(){loginError.textContent="Login fehlgeschlagen";loginError.classList.remove("hidden");}
+
 function logout(){location.reload();}
 function save(){
   localStorage.setItem("users",JSON.stringify(users));
