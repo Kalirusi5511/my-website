@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Studio Dashboard</title>
+
 <style>
 :root{--bg:#f4f4f9;--card:#ffffff;--text:#111}
 .dark{--bg:#121212;--card:#1e1e1e;--text:#eee}
@@ -16,102 +17,76 @@ button{background:#4CAF50;color:white;border:none;font-weight:700}
 button.red{background:#e74c3c}
 button.gray{background:#666}
 .hidden{display:none}
-.welcome{font-size:22px;font-weight:800;text-align:center}
 .section{margin-top:20px}
-.toggle{display:flex;justify-content:space-between;align-items:center}
-hr{margin:20px 0}
-.btn-settings {background: #3498db;color: white;border: none;border-radius: 8px;padding: 8px 16px;font-weight: 700;cursor: pointer;}
-.btn-settings:hover {background: #2980b9;}
-.settings-panel {display: none;max-width: 400px;margin: 20px auto;padding: 15px;background: var(--card);border-radius: 10px;box-shadow: 0 4px 8px rgba(0,0,0,0.2);text-align: center;}
-.settings-panel input {width: 90%;margin: 5px 0;padding: 8px;border-radius: 5px;border: 1px solid #ccc;}
-.inbox-card {border:1px solid #ccc;padding:10px;border-radius:8px;margin-bottom:10px;background-color:#f9f9f9;}
-.inbox-card button {margin-top:6px;padding:6px 10px;border:none;border-radius:5px;background:#e74c3c;color:white;cursor:pointer;}
+.welcome{text-align:center;font-size:22px;font-weight:800}
+.inbox-card{border:1px solid #ccc;padding:10px;border-radius:8px;margin-bottom:10px}
 </style>
 </head>
+
 <body>
 <div class="container">
 
 <!-- LOGIN -->
 <div id="loginBox">
   <h2>Login</h2>
-  <input id="user" placeholder="Username">
-  <input id="pass" type="password" placeholder="Passwort">
+  <input id="loginUser" placeholder="Username">
+  <input id="loginPass" type="password" placeholder="Passwort">
   <button onclick="login()">Login</button>
   <div id="loginError" class="hidden" style="color:#b00020;font-weight:700"></div>
-  <button onclick="promptResetPassword()">Passwort vergessen?</button>
-
-  <hr>
-
-  <h3>Neuen Benutzer erstellen</h3>
-  <input id="regUser" placeholder="Neuer Username">
-  <input id="regPass" type="password" placeholder="Neues Passwort">
-  <button onclick="register()">Registrieren</button>
-  <div id="regInfo" style="font-weight:700"></div>
+  <button onclick="startReset()">Passwort vergessen?</button>
 </div>
 
-<!-- Settings Panel -->
-<div id="settingsPanel" class="settings-panel">
-  <h3>Settings</h3>
-  <h4>Security Questions</h4>
-  <p>Gib bis zu 3 Sicherheitsfragen ein:</p>
-  <div id="securityQuestionsContainer">
-    <input type="text" class="sec-question" placeholder="Frage 1">
-    <input type="text" class="sec-question" placeholder="Frage 2">
-    <input type="text" class="sec-question" placeholder="Frage 3">
-  </div>
-  <button onclick="saveSecurityQuestions()">Speichern</button>
-  <button onclick="toggleSettings()">Schließen</button>
+<!-- RESET -->
+<div id="resetBox" class="hidden">
+  <h3>Passwort zurücksetzen</h3>
+  <div id="resetQuestions"></div>
+  <input id="resetNewPw" type="password" placeholder="Neues Passwort">
+  <button onclick="confirmReset()">Speichern</button>
+  <button class="gray" onclick="location.reload()">Abbrechen</button>
 </div>
 
 <!-- APP -->
 <div id="app" class="hidden">
-  <div style="text-align:center; margin-bottom: 10px;">
-    <button id="settingsBtn" class="btn-settings">Settings ⚙️</button>
-  </div>
   <div id="welcome" class="welcome"></div>
-  <div class="toggle">
-    <strong>Dark Mode</strong>
-    <button class="gray" onclick="toggleDark()">🌙</button>
-  </div>
 
   <div class="section">
-    <h3>Studio auswählen</h3>
+    <button class="gray" onclick="toggleDark()">🌙 Dark Mode</button>
+    <button class="gray" onclick="toggleSettings()">⚙️ Settings</button>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="settingsPanel" class="section hidden">
+    <h3>Sicherheitsfragen</h3>
+    <input class="secQ" placeholder="Frage 1">
+    <input class="secQ" placeholder="Frage 2">
+    <input class="secQ" placeholder="Frage 3">
+    <button onclick="saveSecurityQuestions()">Speichern</button>
+  </div>
+
+  <!-- STUDIOS -->
+  <div class="section">
+    <h3>Studios</h3>
     <select id="studioSelect"></select>
   </div>
 
-  <!-- User Password Change -->
-  <div id="userPwArea" class="section hidden">
-    <h3>Eigenes Passwort ändern</h3>
-    <input id="userOldPw" type="password" placeholder="Altes Passwort">
-    <input id="userNewPw" type="password" placeholder="Neues Passwort">
-    <button onclick="changeOwnPw()">Passwort ändern</button>
-  </div>
-
-  <!-- Owner Area -->
-  <div id="ownerArea" class="section hidden">
-    <h3>Studios verwalten</h3>
-    <input id="newStudio" placeholder="Neues Studio">
-    <button onclick="addStudio()">Studio hinzufügen</button>
-    <h3>User hinzufügen</h3>
-    <input id="newUser" placeholder="Username">
-    <input id="newUserPw" placeholder="Passwort">
-    <button onclick="addUser()">User erstellen</button>
-    <h3>Owner Passwort ändern</h3>
-    <input id="oldPw" type="password" placeholder="Altes Passwort">
-    <input id="newPw" type="password" placeholder="Neues Passwort">
-    <button onclick="changeOwnerPw()">Passwort ändern</button>
-
-    <!-- Owner Inbox -->
-    <div id="ownerInboxArea" class="section">
-      <h3>Inbox</h3>
-      <div id="inboxContainer"></div>
-    </div>
-  </div>
-
-  <!-- User Request Area -->
+  <!-- USER MESSAGE -->
   <div id="userRequestArea" class="section hidden">
-    <h3>Nachricht an den Owner senden</h3>
-    <button onclick="sendOwnerRequest()">Nachricht senden</button>
+    <button onclick="sendMessage()">Nachricht an Owner senden</button>
+  </div>
+
+  <!-- OWNER AREA -->
+  <div id="ownerArea" class="section hidden">
+    <h3>User anlegen</h3>
+    <input id="newUser" placeholder="Username">
+    <input id="newUserPw" type="password" placeholder="Passwort">
+    <button onclick="addUser()">User erstellen</button>
+
+    <h3>Studio hinzufügen</h3>
+    <input id="newStudio" placeholder="Studio Name">
+    <button onclick="addStudio()">Studio hinzufügen</button>
+
+    <h3>Inbox</h3>
+    <div id="inbox"></div>
   </div>
 
   <button class="red" onclick="logout()">Logout</button>
@@ -119,211 +94,112 @@ hr{margin:20px 0}
 </div>
 
 <script>
-/* INIT */
-let users = [];
-let studios = JSON.parse(localStorage.getItem('studios')) || [];
-let ownerInbox = JSON.parse(localStorage.getItem('ownerInbox')) || [];
-let currentUser = null;
+let users=[], studios=JSON.parse(localStorage.getItem("studios"))||[];
+let inbox=JSON.parse(localStorage.getItem("inbox"))||[];
+let currentUser=null, resetUser=null;
 
-/* GitHub User-Sync */
-async function loadUsersFromGitHub() {
-  try {
-    const url = 'https://raw.githubusercontent.com/Kalirusi5511/my-website/main/users.json';
-    const res = await fetch(url);
-    if(!res.ok) throw new Error('Fehler beim Laden der GitHub User-Liste');
-    const githubUsers = await res.json();
-    let localUsers = JSON.parse(localStorage.getItem('users')) || [];
-    githubUsers.forEach(gUser => {
-      if(!localUsers.find(u => u.name===gUser.name)) localUsers.push(gUser);
-    });
-    users = localUsers;
-    localStorage.setItem('users', JSON.stringify(users));
-    console.log('Users aus GitHub geladen');
-  } catch(e){ console.error(e); }
+/* HASH */
+async function sha256(s){
+  const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
 }
 
-/* Dashboard Init */
-loadUsersFromGitHub().then(() => {
-  if(!users || users.length===0){
-    users = [{name:'Owner',pwHash:null,role:'owner'},{name:'Kay',pw:'123456',role:'user'}];
-    save();
+/* INIT + MIGRATION */
+(async function(){
+  let local=JSON.parse(localStorage.getItem("users"))||[];
+  if(!local.length){
+    local=[{name:"Owner",role:"owner",pwHash:await sha256("admin"),securityQuestions:[],securityAnswers:[]}];
   }
-  users.forEach(u => {
-    if(!u.securityQuestions) u.securityQuestions = ["","",""];
-    if(!u.securityAnswers) u.securityAnswers = ["","",""];
-  });
-  save();
-});
-
-/* DARK MODE */
-if(localStorage.getItem('dark')==='1') document.body.classList.add('dark');
-function toggleDark(){document.body.classList.toggle('dark'); localStorage.setItem('dark',document.body.classList.contains('dark')?'1':'0');}
-
-/* SHA */
-async function sha256(str){const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str)); return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}
-
-/* OWNER DEFAULT PW */
-(async()=>{const o=users.find(u=>u.role==='owner'); if(o && !o.pwHash){o.pwHash = await sha256('admin'); save();}})();
+  for(const u of local){
+    if(u.pw){u.pwHash=await sha256(u.pw);delete u.pw;}
+    u.securityQuestions??=[];u.securityAnswers??=[];
+    u.securityAnswers=await Promise.all(u.securityAnswers.map(a=>a.length===64?a:sha256(a)));
+  }
+  users=local;save();
+})();
 
 /* LOGIN */
 async function login(){
-  loginError.classList.add('hidden');
-  const u = user.value.trim(), p = pass.value;
-  const found = users.find(x => x.name === u);
-  if(!found) return showError();
-  let correctPassword = false;
-  if(found.role==='owner'){
-    if(await sha256(p)===found.pwHash) correctPassword=true;
-  } else {
-    if(found.pw===p) correctPassword=true;
+  const u=loginUser.value.trim(),p=loginPass.value;
+  const f=users.find(x=>x.name===u);
+  if(!f||await sha256(p)!==f.pwHash)return fail();
+  currentUser=f;
+  loginBox.classList.add("hidden");
+  app.classList.remove("hidden");
+  welcome.textContent=`Willkommen ${f.name}`;
+  ownerArea.classList.toggle("hidden",f.role!=="owner");
+  userRequestArea.classList.toggle("hidden",f.role==="owner");
+  loadStudios(); loadInbox(); loadSettings();
+}
+
+/* RESET */
+function startReset(){
+  const n=prompt("Username:");
+  resetUser=users.find(u=>u.name===n);
+  if(!resetUser||!resetUser.securityQuestions.length)return alert("Nicht möglich");
+  loginBox.classList.add("hidden"); resetBox.classList.remove("hidden");
+  resetQuestions.innerHTML="";
+  resetUser.securityQuestions.forEach((q,i)=>{
+    const inp=document.createElement("input");inp.placeholder=q;inp.dataset.i=i;
+    resetQuestions.appendChild(inp);
+  });
+}
+async function confirmReset(){
+  for(const i of resetQuestions.querySelectorAll("input")){
+    if(await sha256(i.value)!==resetUser.securityAnswers[i.dataset.i])return alert("Falsch");
   }
-  if(!correctPassword){ showError(); return; }
-  finishLogin(found);
-}
-function showError(){
-  loginError.textContent='Login fehlgeschlagen';
-  loginError.classList.remove('hidden');
+  resetUser.pwHash=await sha256(resetNewPw.value); save(); location.reload();
 }
 
-/* PASSWORD RESET VIA SECURITY QUESTIONS */
-function promptResetPassword(){
-  const username = prompt("Gib deinen Username ein:");
-  if(!username) return;
-  resetPasswordWithQuestions(username);
+/* SETTINGS */
+function toggleSettings(){settingsPanel.classList.toggle("hidden");}
+function loadSettings(){
+  document.querySelectorAll(".secQ").forEach((i,idx)=>i.value=currentUser.securityQuestions[idx]||"");
 }
-
-async function resetPasswordWithQuestions(username){
-  const userObj = users.find(u=>u.name===username);
-  if(!userObj) return alert("Benutzer nicht gefunden");
-
-  const nonEmptyQuestions = (userObj.securityQuestions || []).filter(q => q.trim() !== '');
-  if(nonEmptyQuestions.length===0) return alert("Keine Sicherheitsfragen gesetzt");
-
-  for(let i=0; i<nonEmptyQuestions.length; i++){
-    let answer = null;
-    do {
-      answer = prompt(`Beantworte die Sicherheitsfrage:\n${nonEmptyQuestions[i]}`);
-      if(answer === null) return alert("Passwort-Zurücksetzung abgebrochen!");
-      answer = answer.trim();
-    } while(answer === '');
-    if(answer.toLowerCase() !== (userObj.securityAnswers[i]||'').trim().toLowerCase()){
-      return alert("Falsche Antwort! Passwort konnte nicht zurückgesetzt werden.");
-    }
-  }
-
-  let newPw = null;
-  do {
-    newPw = prompt("Gib dein neues Passwort ein:");
-    if(newPw === null) return alert("Passwort-Zurücksetzung abgebrochen!");
-    newPw = newPw.trim();
-  } while(newPw === '');
-
-  if(userObj.role==='owner'){
-    userObj.pwHash = await sha256(newPw);
-  } else {
-    userObj.pw = newPw;
-  }
-
-  save();
-  alert("Passwort erfolgreich zurückgesetzt!");
-}
-
-/* REGISTRATION */
-function register(){
-  const u=regUser.value.trim(),p=regPass.value;
-  if(!u||!p) return info('Bitte alles ausfüllen',true);
-  if(users.some(x=>x.name===u)) return info('User existiert bereits',true);
-  const newUser={name:u,pw:p,role:'user',securityQuestions:["","",""],securityAnswers:["","",""]};
-  users.push(newUser); save(); info('Benutzer erstellt – jetzt einloggen',false); regUser.value=''; regPass.value='';
-}
-function info(msg,err){regInfo.textContent=msg; regInfo.style.color=err?'#b00020':'#2ecc71';}
-
-/* PASSWORD CHANGE */
-function changeOwnPw(){
-  if(currentUser.role==='owner') return; 
-  if(currentUser.pw!==userOldPw.value) return alert('Falsches Passwort'); 
-  currentUser.pw=userNewPw.value.trim(); save(); alert('Passwort geändert');
-}
-
-async function changeOwnerPw(){
-  const o = users.find(u => u.role==='owner');
-  if(!o) return alert('Owner nicht gefunden!');
-  const oldHash = await sha256(oldPw.value);
-  if(oldHash!==o.pwHash) return alert('Falsches altes Passwort!');
-  o.pwHash = await sha256(newPw.value.trim());
-  save();
-  alert('Owner Passwort erfolgreich geändert!');
-}
-
-/* SEND REQUEST TO OWNER */
-function sendOwnerRequest(){
-  if(!currentUser || currentUser.role==='owner') return;
-  const msg = prompt("Gib deine Nachricht an den Owner ein:");
-  if(!msg || !msg.trim()) return alert("Keine Nachricht eingegeben.");
-  ownerInbox.push({from: currentUser.name,message: msg.trim(),timestamp: Date.now()});
-  localStorage.setItem('ownerInbox', JSON.stringify(ownerInbox));
-  alert("Nachricht an den Owner gesendet!");
+async function saveSecurityQuestions(){
+  const q=[...document.querySelectorAll(".secQ")].map(i=>i.value);
+  currentUser.securityQuestions=q;
+  currentUser.securityAnswers=await Promise.all(q.map(a=>a?sha256(a):""));
+  save(); alert("Gespeichert");
 }
 
 /* STUDIOS */
-function loadStudios(){studioSelect.innerHTML=''; studios.forEach(s=>{const o=document.createElement('option'); o.textContent=s.name; studioSelect.appendChild(o);});}
-function addStudio(){const n=newStudio.value.trim(); if(!n) return; studios.push({id:Date.now(),name:n}); save(); loadStudios();}
+function loadStudios(){
+  studioSelect.innerHTML="";
+  studios.forEach(s=>{const o=document.createElement("option");o.textContent=s;studioSelect.appendChild(o);});
+}
+function addStudio(){studios.push(newStudio.value);save();loadStudios();}
 
-/* OWNER INBOX */
-function loadOwnerInbox(){
-  const container = document.getElementById('inboxContainer');
-  container.innerHTML = '';
-  if(ownerInbox.length===0){ container.innerHTML='<p>Keine neuen Anfragen</p>'; return; }
-  ownerInbox.forEach((msg, idx) => {
-    const card = document.createElement('div');
-    card.className='inbox-card';
-    const from = document.createElement('strong'); from.textContent = `Von: ${msg.from}`;
-    const text = document.createElement('p'); text.textContent = msg.message;
-    const time = document.createElement('small'); time.textContent = `Gesendet: ${new Date(msg.timestamp).toLocaleString()}`;
-    const btn = document.createElement('button'); btn.textContent='Als gelesen markieren';
-    btn.onclick = ()=>{ ownerInbox.splice(idx,1); localStorage.setItem('ownerInbox', JSON.stringify(ownerInbox)); loadOwnerInbox(); };
-    card.appendChild(from); card.appendChild(text); card.appendChild(time); card.appendChild(btn);
-    container.appendChild(card);
+/* INBOX */
+function sendMessage(){
+  const m=prompt("Nachricht:");
+  inbox.push({from:currentUser.name,msg:m}); save(); alert("Gesendet");
+}
+function loadInbox(){
+  if(currentUser.role!=="owner")return;
+  inbox.innerHTML="";
+  inbox.forEach((m,i)=>{
+    const d=document.createElement("div");d.className="inbox-card";
+    d.textContent=`${m.from}: ${m.msg}`;
+    inbox.appendChild(d);
   });
 }
 
-/* SAVE / LOGOUT */
-function save(){localStorage.setItem('users',JSON.stringify(users)); localStorage.setItem('studios',JSON.stringify(studios));}
+/* OWNER */
+async function addUser(){
+  users.push({name:newUser.value,role:"user",pwHash:await sha256(newUserPw.value),securityQuestions:[],securityAnswers:[]});
+  save(); alert("User erstellt");
+}
+
+/* UTIL */
+function toggleDark(){document.body.classList.toggle("dark");localStorage.setItem("dark",document.body.classList.contains("dark")?"1":"0");}
+if(localStorage.getItem("dark")==="1")document.body.classList.add("dark");
+function fail(){loginError.textContent="Login fehlgeschlagen";loginError.classList.remove("hidden");}
 function logout(){location.reload();}
-
-/* SETTINGS PANEL */
-const settingsBtn=document.getElementById('settingsBtn');
-const settingsPanel=document.getElementById('settingsPanel');
-function toggleSettings(){
-  if(!currentUser){alert("Bitte zuerst einloggen!"); return;}
-  settingsPanel.style.display=settingsPanel.style.display==='none'?'block':'none';
-  if(settingsPanel.style.display==='block') loadSecurityQuestions();
-}
-function loadSecurityQuestions(){
-  const questions=currentUser.securityQuestions || ["","",""];
-  const inputs=document.querySelectorAll('.sec-question');
-  inputs.forEach((input,i)=>input.value=questions[i]);
-}
-function saveSecurityQuestions(){
-  const inputs=document.querySelectorAll('.sec-question');
-  currentUser.securityQuestions=Array.from(inputs).map(input=>input.value);
-  save();
-  alert('Security Questions gespeichert!');
-}
-settingsBtn.addEventListener('click', toggleSettings);
-
-/* FINISH LOGIN */
-function finishLogin(userObj){
-  currentUser=userObj;
-  loginBox.classList.add('hidden');
-  app.classList.remove('hidden');
-  welcome.textContent=`Willkommen ${userObj.name} 👋`;
-  ownerArea.classList.toggle('hidden', userObj.role!=='owner');
-  userPwArea.classList.toggle('hidden', userObj.role==='owner');
-  userRequestArea.classList.toggle('hidden', userObj.role==='owner');
-  loadStudios();
-  if(currentUser.role==='owner'){ loadOwnerInbox(); }
-  save();
+function save(){
+  localStorage.setItem("users",JSON.stringify(users));
+  localStorage.setItem("studios",JSON.stringify(studios));
+  localStorage.setItem("inbox",JSON.stringify(inbox));
 }
 </script>
 </body>
