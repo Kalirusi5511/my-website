@@ -4,252 +4,295 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Studio Dashboard</title>
-
 <style>
-:root{--bg:#f4f4f9;--card:#fff;--text:#111}
+:root{--bg:#f4f4f9;--card:#ffffff;--text:#111}
 .dark{--bg:#121212;--card:#1e1e1e;--text:#eee}
 *{box-sizing:border-box}
-body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text);padding:12px}
+body{margin:0;font-family:system-ui,Arial;background:var(--bg);color:var(--text);padding:12px}
 .container{max-width:900px;margin:auto;background:var(--card);padding:18px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.25)}
 h2,h3{text-align:center}
-input,button,select{width:100%;padding:12px;margin:6px 0;border-radius:8px}
-button{background:#4CAF50;color:#fff;border:none;font-weight:700}
+input,button,select{width:100%;padding:12px;margin:6px 0;border-radius:8px;font-size:15px}
+button{background:#4CAF50;color:white;border:none;font-weight:700}
 button.red{background:#e74c3c}
 button.gray{background:#666}
 .hidden{display:none}
-table{width:100%;border-collapse:collapse}
-th,td{border:1px solid #ccc;padding:8px;text-align:center}
-.status-circle{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:6px}
-.status-online{background:green}
-.status-work{background:orange}
-.status-vacation{background:red}
-.status-neutral{background:blue}
+.welcome{font-size:22px;font-weight:800;text-align:center}
+.section{margin-top:20px}
+.toggle{display:flex;justify-content:space-between;align-items:center}
+hr{margin:20px 0}
+.btn-settings {background: #3498db;color: white;border: none;border-radius: 8px;padding: 8px 16px;font-weight: 700;cursor: pointer;}
+.btn-settings:hover {background: #2980b9;}
+.settings-panel {display: none;max-width: 400px;margin: 20px auto;padding: 15px;background: var(--card);border-radius: 10px;box-shadow: 0 4px 8px rgba(0,0,0,0.2);text-align: center;}
+.settings-panel input {width: 90%;margin: 5px 0;padding: 8px;border-radius: 5px;border: 1px solid #ccc;}
+.inbox-card {border:1px solid #ccc;padding:10px;border-radius:8px;margin-bottom:10px;background-color:#f9f9f9;}
+.inbox-card button {margin-top:6px;padding:6px 10px;border:none;border-radius:5px;background:#e74c3c;color:white;cursor:pointer;}
 </style>
 </head>
-
 <body>
 <div class="container">
 
 <!-- LOGIN -->
 <div id="loginBox">
   <h2>Login</h2>
-  <input id="loginUser" placeholder="Username">
-  <input id="loginPass" type="password" placeholder="Passwort">
+  <input id="user" placeholder="Username">
+  <input id="pass" type="password" placeholder="Passwort">
   <button onclick="login()">Login</button>
   <div id="loginError" class="hidden" style="color:#b00020;font-weight:700"></div>
+
+  <hr>
+
+  <h3>Neuen Benutzer erstellen</h3>
+  <input id="regUser" placeholder="Neuer Username">
+  <input id="regPass" type="password" placeholder="Neues Passwort">
+  <button onclick="register()">Registrieren</button>
+  <div id="regInfo" style="font-weight:700"></div>
 </div>
 
-<!-- 2FA -->
-<div id="twofaBox" class="hidden">
-  <h2>Owner 2FA</h2>
-  <input id="twofaPin" type="password" placeholder="6-stellige PIN">
-  <button onclick="verify2FA()">Bestätigen</button>
+<!-- Settings Panel -->
+<div id="settingsPanel" class="settings-panel">
+  <h3>Settings</h3>
+  <h4>Security Questions</h4>
+  <p>Gib bis zu 3 Sicherheitsfragen ein:</p>
+  <div id="securityQuestionsContainer">
+    <input type="text" class="sec-question" placeholder="Frage 1">
+    <input type="text" class="sec-question" placeholder="Frage 2">
+    <input type="text" class="sec-question" placeholder="Frage 3">
+  </div>
+  <button onclick="saveSecurityQuestions()">Speichern</button>
+  <button onclick="toggleSettings()">Schließen</button>
 </div>
 
 <!-- APP -->
 <div id="app" class="hidden">
-  <div id="welcome" style="text-align:center;font-size:22px;font-weight:800"></div>
-  <button class="gray" onclick="toggleDark()">🌙 Dark Mode</button>
-
-  <!-- OWNER -->
-  <div id="ownerArea" class="hidden">
-    <h3>Owner Reset (Master)</h3>
-    <input id="masterPw" type="password" placeholder="Master-Passwort">
-    <button onclick="ownerMasterReset()">Owner Passwort neu setzen</button>
-    <div id="newOwnerPwDisplay" class="hidden" style="color:green;font-weight:700"></div>
-
-    <h3>Studio erstellen</h3>
-    <input id="studioName" placeholder="Studio Name">
-    <select id="studioStatus">
-      <option value="online">Online</option>
-      <option value="work">Auf Arbeit</option>
-      <option value="vacation">Urlaub</option>
-      <option value="neutral">Neutral</option>
-    </select>
-    <button onclick="addStudio()">Studio hinzufügen</button>
+  <div style="text-align:center; margin-bottom: 10px;">
+    <button id="settingsBtn" class="btn-settings">Settings ⚙️</button>
+  </div>
+  <div id="welcome" class="welcome"></div>
+  <div class="toggle">
+    <strong>Dark Mode</strong>
+    <button class="gray" onclick="toggleDark()">🌙</button>
   </div>
 
-  <h3>Studios</h3>
-  <table>
-    <thead><tr><th>Name</th><th>Status</th><th>Owner</th><th>Aktion</th></tr></thead>
-    <tbody id="studioTable"></tbody>
-  </table>
+  <div class="section">
+    <h3>Studio auswählen</h3>
+    <select id="studioSelect"></select>
+  </div>
+
+  <!-- User Password Change -->
+  <div id="userPwArea" class="section hidden">
+    <h3>Eigenes Passwort ändern</h3>
+    <input id="userOldPw" type="password" placeholder="Altes Passwort">
+    <input id="userNewPw" type="password" placeholder="Neues Passwort">
+    <button onclick="changeOwnPw()">Passwort ändern</button>
+  </div>
+
+  <!-- Owner Area -->
+  <div id="ownerArea" class="section hidden">
+    <h3>Studios verwalten</h3>
+    <input id="newStudio" placeholder="Neues Studio">
+    <button onclick="addStudio()">Studio hinzufügen</button>
+    <h3>User hinzufügen</h3>
+    <input id="newUser" placeholder="Username">
+    <input id="newUserPw" placeholder="Passwort">
+    <button onclick="addUser()">User erstellen</button>
+    <h3>Owner Passwort ändern</h3>
+    <input id="oldPw" type="password" placeholder="Altes Passwort">
+    <input id="newPw" type="password" placeholder="Neues Passwort">
+    <button onclick="changeOwnerPw()">Passwort ändern</button>
+
+    <!-- Owner Inbox -->
+    <div id="ownerInboxArea" class="section">
+      <h3>Inbox</h3>
+      <div id="inboxContainer"></div>
+    </div>
+  </div>
+
+  <!-- User Request Area -->
+  <div id="userRequestArea" class="section hidden">
+    <h3>Nachricht an den Owner senden</h3>
+    <button onclick="sendOwnerRequest()">Nachricht senden</button>
+  </div>
 
   <button class="red" onclick="logout()">Logout</button>
 </div>
 </div>
 
 <script>
-/* ========= CONFIG ========= */
-const MASTER_PASSWORD = "supersecure123";
-const SECURITY_INTERVAL = 5000;
-const OWNER_2FA_TIMEOUT = 5 * 60 * 1000;
-
-/* ========= STATE ========= */
-let users = JSON.parse(localStorage.getItem("users")) || [];
-let studios = JSON.parse(localStorage.getItem("studios")) || [];
-let session = JSON.parse(localStorage.getItem("session"));
+/* INIT */
+let users = [];
+let studios = JSON.parse(localStorage.getItem('studios')) || [];
+let ownerInbox = JSON.parse(localStorage.getItem('ownerInbox')) || [];
 let currentUser = null;
 
-/* ========= HASH ========= */
-async function sha256(s){
-  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
+// GitHub User-Sync
+async function loadUsersFromGitHub() {
+  try {
+    const url = 'https://raw.githubusercontent.com/Kalirusi5511/my-website/main/users.json';
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('Fehler beim Laden der GitHub User-Liste');
+    const githubUsers = await res.json();
+    let localUsers = JSON.parse(localStorage.getItem('users')) || [];
+    githubUsers.forEach(gUser => {
+      if(!localUsers.find(u => u.name===gUser.name)) localUsers.push(gUser);
+    });
+    users = localUsers;
+    localStorage.setItem('users', JSON.stringify(users));
+    console.log('Users aus GitHub geladen');
+  } catch(e){ console.error(e); }
 }
 
-/* ========= INIT ========= */
-(async()=>{
-  if(!users.find(u=>u.name==="Owner")){
-    users.push({name:"Owner",role:"owner",pwHash:await sha256("admin"),pinHash:null});
+// Dashboard Init
+loadUsersFromGitHub().then(() => {
+  if(!users || users.length===0){
+    users = [{name:'Owner',pwHash:null,role:'owner'},{name:'Kay',pw:'123456',role:'user'}];
     save();
   }
-  restoreSession();
-  startSecurityWatchdog();
-})();
-
-/* ========= LOGIN ========= */
-async function login(){
-  const u=loginUser.value.trim(), p=loginPass.value;
-
-  if(u==="Owner" && p===MASTER_PASSWORD){
-    startSession(users.find(x=>x.name==="Owner"));
-    return;
-  }
-
-  const f=users.find(x=>x.name===u);
-  if(!f||await sha256(p)!==f.pwHash){
-    loginError.textContent="Login fehlgeschlagen";
-    loginError.classList.remove("hidden");
-    return;
-  }
-  startSession(f);
-}
-
-function startSession(user){
-  currentUser=user;
-  session={token:crypto.randomUUID(),user:user.name,role:user.role,time:Date.now()};
-  localStorage.setItem("session",JSON.stringify(session));
-
-  if(user.role==="owner"){
-    require2FA();
-  } else {
-    showApp();
-  }
-}
-
-/* ========= 2FA ========= */
-function require2FA(){
-  loginBox.classList.add("hidden");
-  twofaBox.classList.remove("hidden");
-}
-
-async function verify2FA(){
-  const pin=twofaPin.value.trim();
-  if(pin.length<4) return alert("PIN ungültig");
-
-  if(!currentUser.pinHash){
-    currentUser.pinHash=await sha256(pin);
-    save();
-  } else if(await sha256(pin)!==currentUser.pinHash){
-    return alert("Falsche PIN");
-  }
-
-  session.twofaUntil=Date.now()+OWNER_2FA_TIMEOUT;
-  localStorage.setItem("session",JSON.stringify(session));
-  twofaBox.classList.add("hidden");
-  showApp();
-}
-
-/* ========= SESSION RESTORE ========= */
-function restoreSession(){
-  if(!session) return;
-  const u=users.find(x=>x.name===session.user);
-  if(!u||u.role!==session.role) return forceLogout();
-  currentUser=u;
-
-  if(u.role==="owner" && (!session.twofaUntil || Date.now()>session.twofaUntil)){
-    require2FA();
-  } else {
-    showApp();
-  }
-}
-
-/* ========= SECURITY WATCHDOG ========= */
-function startSecurityWatchdog(){
-  setInterval(()=>{
-    const s=JSON.parse(localStorage.getItem("session"));
-    if(!s) return forceLogout();
-    const u=users.find(x=>x.name===s.user);
-    if(!u||u.role!==s.role) forceLogout();
-    if(u.role==="owner" && Date.now()>s.twofaUntil) forceLogout();
-  },SECURITY_INTERVAL);
-}
-
-/* ========= OWNER RESET ========= */
-async function ownerMasterReset(){
-  if(masterPw.value!==MASTER_PASSWORD) return alert("Falsches Master-Passwort");
-  const owner=users.find(u=>u.role==="owner");
-  const np="owner_"+Date.now();
-  owner.pwHash=await sha256(np);
+  users.forEach(u => {
+    if(!u.securityQuestions) u.securityQuestions = ["","",""];
+    if(!u.securityAnswers) u.securityAnswers = ["","",""];
+  });
   save();
-  newOwnerPwDisplay.textContent="Neues Owner Passwort: "+np;
-  newOwnerPwDisplay.classList.remove("hidden");
+});
+
+/* DARK */
+if(localStorage.getItem('dark')==='1') document.body.classList.add('dark');
+function toggleDark(){document.body.classList.toggle('dark'); localStorage.setItem('dark',document.body.classList.contains('dark')?'1':'0');}
+
+/* SHA */
+async function sha256(str){const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str)); return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}
+
+/* OWNER DEFAULT PW */
+(async()=>{const o=users.find(u=>u.role==='owner'); if(o && !o.pwHash){o.pwHash = await sha256('admin'); save();}})();
+
+/* LOGIN */
+async function login(){
+  loginError.classList.add('hidden');
+  const u=user.value.trim(), p=pass.value;
+  const found = users.find(x => x.name===u);
+  if(!found) return showError();
+  let correctPassword=false;
+  if(found.role==='owner'){if(await sha256(p)===found.pwHash) correctPassword=true;}
+  else if(found.pw===p) correctPassword=true;
+  if(!correctPassword){
+    if(found.securityQuestions && found.securityQuestions.length>0){askSecurityQuestions(found); return;}
+    else return showError();
+  }
+  finishLogin(found);
 }
 
-/* ========= STUDIOS ========= */
-function addStudio(){
-  studios.push({name:studioName.value,status:studioStatus.value,owner:currentUser.name});
-  save(); loadStudios();
+function askSecurityQuestions(userObj){
+  const nonEmptyQuestions = userObj.securityQuestions.filter(q => q.trim() !== '');
+  const answers = [];
+  for(let i=0;i<nonEmptyQuestions.length;i++){
+    let ans = prompt(`Passwort falsch! Beantworte deine Sicherheitsfrage:\n${nonEmptyQuestions[i]}`);
+    answers.push(ans ? ans.trim().toLowerCase() : '');
+  }
+  const correctAnswers = userObj.securityAnswers.map(a=>(a||'').trim().toLowerCase()).filter(a=>a!=='');
+  const allCorrect = correctAnswers.every(a => answers.includes(a));
+  if(allCorrect){ finishLogin(userObj); } else { alert('Falsche Antworten!'); showError(); }
 }
 
-function loadStudios(){
-  studioTable.innerHTML="";
-  studios.forEach((s,i)=>{
-    const can=currentUser.role==="owner"||currentUser.name===s.owner;
-    studioTable.innerHTML+=`
-    <tr>
-      <td>${s.name}</td>
-      <td><span class="status-circle status-${s.status}"></span>${s.status}</td>
-      <td>${s.owner}</td>
-      <td>${can?`<button onclick="changeStatus(${i})">Ändern</button>`:"-"}</td>
-    </tr>`;
+function finishLogin(userObj){
+  currentUser=userObj;
+  loginBox.classList.add('hidden');
+  app.classList.remove('hidden');
+  welcome.textContent=`Willkommen ${userObj.name} 👋`;
+  ownerArea.classList.toggle('hidden', userObj.role!=='owner');
+  userPwArea.classList.toggle('hidden', userObj.role==='owner');
+  userRequestArea.classList.toggle('hidden', userObj.role==='owner');
+  loadStudios();
+  if(!currentUser.securityAnswers) currentUser.securityAnswers=Array.from({length:3},()=> '');
+  save();
+  if(currentUser.role==='owner'){ loadOwnerInbox(); }
+}
+
+function showError(){loginError.textContent='Login fehlgeschlagen'; loginError.classList.remove('hidden');}
+
+/* REGISTRATION */
+function register(){
+  const u=regUser.value.trim(),p=regPass.value;
+  if(!u||!p) return info('Bitte alles ausfüllen',true);
+  if(users.some(x=>x.name===u)) return info('User existiert bereits',true);
+  const newUser={name:u,pw:p,role:'user',securityQuestions:["","",""],securityAnswers:["","",""]};
+  users.push(newUser); save(); info('Benutzer erstellt – jetzt einloggen',false); regUser.value=''; regPass.value='';
+}
+
+function info(msg,err){regInfo.textContent=msg; regInfo.style.color=err?'#b00020':'#2ecc71';}
+
+/* PASSWORD CHANGES */
+function changeOwnPw(){
+  if(currentUser.role==='owner') return; 
+  if(currentUser.pw!==userOldPw.value) return alert('Falsches Passwort'); 
+  currentUser.pw=userNewPw.value.trim(); save(); alert('Passwort geändert');
+}
+async function changeOwnerPw(){
+  const o = users.find(u => u.role==='owner');
+  if(!o) return alert('Owner nicht gefunden!');
+  const oldHash = await sha256(oldPw.value);
+  if(oldHash !== o.pwHash) return alert('Falsches altes Passwort!');
+  o.pwHash = await sha256(newPw.value.trim());
+  save();
+  alert('Owner Passwort erfolgreich geändert!');
+}
+
+/* SEND REQUEST TO OWNER */
+function sendOwnerRequest(){
+  if(!currentUser || currentUser.role==='owner') return;
+  const msg = prompt("Gib deine Nachricht an den Owner ein:");
+  if(!msg || !msg.trim()) return alert("Keine Nachricht eingegeben.");
+  ownerInbox.push({from: currentUser.name,message: msg.trim(),timestamp: Date.now()});
+  localStorage.setItem('ownerInbox', JSON.stringify(ownerInbox));
+  alert("Nachricht an den Owner gesendet!");
+}
+
+/* STUDIOS */
+function loadStudios(){studioSelect.innerHTML=''; studios.forEach(s=>{const o=document.createElement('option'); o.textContent=s.name; studioSelect.appendChild(o);});}
+function addStudio(){const n=newStudio.value.trim(); if(!n) return; studios.push({id:Date.now(),name:n}); save(); loadStudios();}
+
+/* OWNER INBOX */
+function loadOwnerInbox(){
+  const container = document.getElementById('inboxContainer');
+  container.innerHTML = '';
+  if(ownerInbox.length===0){ container.innerHTML='<p>Keine neuen Anfragen</p>'; return; }
+  ownerInbox.forEach((msg, idx) => {
+    const card = document.createElement('div');
+    card.className='inbox-card';
+    const from = document.createElement('strong'); from.textContent = `Von: ${msg.from}`;
+    const text = document.createElement('p'); text.textContent = msg.message;
+    const time = document.createElement('small'); time.textContent = `Gesendet: ${new Date(msg.timestamp).toLocaleString()}`;
+    const btn = document.createElement('button'); btn.textContent='Als gelesen markieren';
+    btn.onclick = ()=>{ ownerInbox.splice(idx,1); localStorage.setItem('ownerInbox', JSON.stringify(ownerInbox)); loadOwnerInbox(); };
+    card.appendChild(from); card.appendChild(text); card.appendChild(time); card.appendChild(btn);
+    container.appendChild(card);
   });
 }
 
-function changeStatus(i){
-  const ns=prompt("online/work/vacation/neutral",studios[i].status);
-  if(["online","work","vacation","neutral"].includes(ns)){
-    studios[i].status=ns; save(); loadStudios();
-  }
-}
+/* SAVE / LOGOUT */
+function save(){localStorage.setItem('users',JSON.stringify(users)); localStorage.setItem('studios',JSON.stringify(studios));}
+function logout(){location.reload();}
 
-/* ========= UI ========= */
-function showApp(){
-  loginBox.classList.add("hidden");
-  twofaBox.classList.add("hidden");
-  app.classList.remove("hidden");
-  welcome.textContent="Willkommen "+currentUser.name;
-  ownerArea.classList.toggle("hidden",currentUser.role!=="owner");
-  loadStudios();
+/* SETTINGS PANEL */
+const settingsBtn=document.getElementById('settingsBtn');
+const settingsPanel=document.getElementById('settingsPanel');
+function toggleSettings(){
+  if(!currentUser){alert("Bitte zuerst einloggen!"); return;}
+  settingsPanel.style.display=settingsPanel.style.display==='none'?'block':'none';
+  if(settingsPanel.style.display==='block') loadSecurityQuestions();
 }
-
-function toggleDark(){
-  document.body.classList.toggle("dark");
-  localStorage.setItem("dark",document.body.classList.contains("dark")?"1":"0");
+function loadSecurityQuestions(){
+  const questions=currentUser.securityQuestions || ["","",""];
+  const inputs=document.querySelectorAll('.sec-question');
+  inputs.forEach((input,i)=>input.value=questions[i]);
 }
-if(localStorage.getItem("dark")==="1") document.body.classList.add("dark");
-
-/* ========= LOGOUT ========= */
-function logout(){forceLogout();}
-function forceLogout(){
-  localStorage.removeItem("session");
-  location.reload();
+function saveSecurityQuestions(){
+  const inputs=document.querySelectorAll('.sec-question');
+  currentUser.securityQuestions=Array.from(inputs).map(input=>input.value);
+  if(!currentUser.securityAnswers || currentUser.securityAnswers.every(a=>"")) 
+    currentUser.securityAnswers=Array.from(inputs).map(input=>input.value.toLowerCase().trim());
+  save();
+  alert('Security Questions gespeichert!');
 }
-
-function save(){
-  localStorage.setItem("users",JSON.stringify(users));
-  localStorage.setItem("studios",JSON.stringify(studios));
-}
+settingsBtn.addEventListener('click', toggleSettings);
 </script>
 </body>
 </html>
