@@ -23,7 +23,6 @@ h2,h3{text-align:center;margin-top:0;}
 </head>
 <body>
 
-<!-- LOGIN & REGISTRIERUNG -->
 <div class="box" id="loginBox">
   <h2>Login</h2>
   <input id="user" placeholder="Name">
@@ -33,17 +32,13 @@ h2,h3{text-align:center;margin-top:0;}
   <h3>Registrieren</h3>
   <input id="ru" placeholder="Name">
   <input id="rp" type="password" placeholder="Passwort">
-  
-  <!-- Studio Auswahl / Neues Studio -->
   <select id="registerStudioSelect">
     <option value="">Neues Studio erstellen</option>
   </select>
   <input id="registerNewStudio" placeholder="Name des neuen Studios">
-  
   <button onclick="register()">Registrieren</button>
 </div>
 
-<!-- DASHBOARD -->
 <div class="box hidden" id="app">
   <h2 id="welcome"></h2>
   <p>Rolle: <b id="roleText"></b></p>
@@ -98,7 +93,6 @@ h2,h3{text-align:center;margin-top:0;}
 </div>
 
 <script>
-/* ===== STATE ===== */
 let users = JSON.parse(localStorage.getItem('users')) || [];
 let studios = JSON.parse(localStorage.getItem('studios')) || [];
 let currentUser = null;
@@ -107,35 +101,47 @@ const save = ()=>{
   localStorage.setItem('studios',JSON.stringify(studios)); 
 };
 
-/* ===== HASH ===== */
 async function hash(str){ 
   const buf = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(str)); 
   return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-/* ===== INIT OWNER ===== */
+// ===== INIT OWNER & HASH EXISTING USERS =====
 (async()=>{
-  if(!users.find(u=>u.role==='owner')){
-    users.push({name:'Owner',role:'owner',pw:await hash('admin')});
-    save();
+  // Alle alten Klartext-PW hashen
+  for(let u of users){
+    if(u.pw && !u.pwHash){
+      u.pwHash = await hash(u.pw);
+      delete u.pw;
+    }
   }
+
+  // Owner anlegen, Passwort = 1234
+  if(!users.find(u=>u.role==='owner')){
+    users.push({name:'Owner',role:'owner',pwHash:await hash('1234')});
+  } else {
+    let owner = users.find(u=>u.role==='owner');
+    owner.pwHash = await hash('1234'); // Reset Owner Passwort
+  }
+
+  save();
 })();
 
-/* ===== LOGIN ===== */
+// ===== LOGIN =====
 async function login(){
   let u = users.find(x=>x.name===user.value);
   if(!u && user.value.toLowerCase()==='owner') u = users.find(x=>x.role==='owner');
-  if(!u || await hash(pass.value)!==u.pw) return alert("Login falsch");
+  if(!u || await hash(pass.value)!==u.pwHash) return alert("Login falsch");
   currentUser=u;
   loginBox.classList.add('hidden'); app.classList.remove('hidden');
   welcome.textContent = "Hallo "+u.name; roleText.textContent = u.role;
-  loadStudios(); loadStudiosForRegister(); // auch für Dropdown
+  loadStudios(); loadStudiosForRegister();
 }
 
-/* ===== REGISTER ===== */
+// ===== REGISTER =====
 async function register(){
   if(users.some(x=>x.name===ru.value)) return alert("User existiert");
-  const newUser = {name:ru.value,role:'member',pw:await hash(rp.value)};
+  const newUser = {name:ru.value,role:'member',pwHash:await hash(rp.value)};
   
   const selectedStudio = document.getElementById('registerStudioSelect').value;
   const newStudioName = document.getElementById('registerNewStudio').value.trim();
@@ -153,27 +159,21 @@ async function register(){
   loadStudiosForRegister();
 }
 
-/* ===== ADMIN NAV ===== */
-function goAdmin(){
-  if(currentUser.role==='member') return alert("Kein Zugriff");
-  location.href="admin.html";
-}
+// ===== ADMIN NAV =====
+function goAdmin(){ if(currentUser.role==='member') return alert("Kein Zugriff"); location.href="admin.html"; }
 function logout(){location.reload();}
 
-/* ===== DARK MODE ===== */
-function toggleDark(){
-  document.body.classList.toggle('dark'); 
-  localStorage.setItem('dark',document.body.classList.contains('dark')?'1':'0');
-}
+// ===== DARK MODE =====
+function toggleDark(){ document.body.classList.toggle('dark'); localStorage.setItem('dark',document.body.classList.contains('dark')?'1':'0'); }
 if(localStorage.getItem('dark')==='1') document.body.classList.add('dark');
 
-/* ===== PASSWORD CHANGE ===== */
+// ===== PASSWORD CHANGE =====
 async function changePw(){
-  if(await hash(oldPw.value)!==currentUser.pw) return alert("Falsches Passwort");
-  currentUser.pw = await hash(newPw.value); save(); alert("Passwort geändert");
+  if(await hash(oldPw.value)!==currentUser.pwHash) return alert("Falsches Passwort");
+  currentUser.pwHash = await hash(newPw.value); save(); alert("Passwort geändert");
 }
 
-/* ===== STUDIOS ===== */
+// ===== STUDIOS =====
 function loadStudios(){
   studioSelect.innerHTML='';
   studios.forEach(s=>{
@@ -182,6 +182,7 @@ function loadStudios(){
   });
   if(studios.length>0){ showUserStudioSections(); renderStudioUsers(); renderStudioMessages(); }
 }
+
 function loadStudiosForRegister(){
   const sel = document.getElementById('registerStudioSelect');
   sel.innerHTML = '<option value="">Neues Studio erstellen</option>';
@@ -203,10 +204,7 @@ function editUserStudio(){
   const studio = studios.find(s => s.id == studioSelect.value);
   if(!studio) return alert("Kein Studio ausgewählt");
   const newName = prompt("Neuer Studio-Name:", studio.name);
-  if(newName && newName.trim() !== "") {
-    studio.name = newName.trim();
-    save(); loadStudios(); alert("Studio-Name geändert");
-  }
+  if(newName && newName.trim() !== "") { studio.name = newName.trim(); save(); loadStudios(); alert("Studio-Name geändert"); }
 }
 
 function setUserStatus(){
@@ -259,8 +257,6 @@ studioSelect.onchange = ()=>{
 
 function showUserStudioSections(){ userStudioStatus.classList.remove('hidden'); studioUsers.classList.remove('hidden'); studioMessage.classList.remove('hidden'); studioMessages.classList.remove('hidden'); leaveStudioBtn.classList.remove('hidden'); }
 
-/* ===== SETTINGS / OWNER RESET ===== */
-// ... hier kann dein bestehender Settings/Owner Reset Code unverändert bleiben
 </script>
 </body>
 </html>
