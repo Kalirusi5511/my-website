@@ -96,6 +96,7 @@ h2,h3{text-align:center;margin-top:0;}
 let users = JSON.parse(localStorage.getItem('users')) || [];
 let studios = JSON.parse(localStorage.getItem('studios')) || [];
 let currentUser = null;
+
 const save = ()=>{ 
   localStorage.setItem('users',JSON.stringify(users)); 
   localStorage.setItem('studios',JSON.stringify(studios)); 
@@ -108,23 +109,17 @@ async function hash(str){
 
 // ===== INIT OWNER & HASH EXISTING USERS =====
 (async()=>{
-  // Alle alten Klartext-PW hashen
   for(let u of users){
     if(u.pw && !u.pwHash){
       u.pwHash = await hash(u.pw);
       delete u.pw;
     }
   }
-
-  // Owner anlegen, Passwort = 1234
+  // Owner nur einmal anlegen, wenn noch nicht vorhanden
   if(!users.find(u=>u.role==='owner')){
     users.push({name:'Owner',role:'owner',pwHash:await hash('1234')});
-  } else {
-    let owner = users.find(u=>u.role==='owner');
-    owner.pwHash = await hash('1234'); // Reset Owner Passwort
+    save();
   }
-
-  save();
 })();
 
 // ===== LOGIN =====
@@ -170,7 +165,9 @@ if(localStorage.getItem('dark')==='1') document.body.classList.add('dark');
 // ===== PASSWORD CHANGE =====
 async function changePw(){
   if(await hash(oldPw.value)!==currentUser.pwHash) return alert("Falsches Passwort");
-  currentUser.pwHash = await hash(newPw.value); save(); alert("Passwort geändert");
+  currentUser.pwHash = await hash(newPw.value);
+  save();
+  alert("Passwort geändert");
 }
 
 // ===== STUDIOS =====
@@ -256,7 +253,7 @@ studioSelect.onchange = ()=>{
 };
 
 function showUserStudioSections(){ userStudioStatus.classList.remove('hidden'); studioUsers.classList.remove('hidden'); studioMessage.classList.remove('hidden'); studioMessages.classList.remove('hidden'); leaveStudioBtn.classList.remove('hidden'); }
-
 </script>
+
 </body>
 </html>
