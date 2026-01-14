@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Studio Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#f4f4f4;--card:#fff;--text:#111;--btn:#4CAF50;--btn-hover:#45a049;}
+.dark{--bg:#121212;--card:#1e1e1e;--text:#eee;--btn:#3498db;--btn-hover:#2980b9;}
+body{font-family:sans-serif;background:var(--bg);color:var(--text);padding:12px}
+.box{max-width:600px;margin:auto;background:var(--card);padding:20px;border-radius:10px;box-shadow:0 3px 8px rgba(0,0,0,0.2);}
+input,select,button{padding:10px;margin:5px 0;width:100%;border-radius:6px;font-size:15px;}
+button{background:var(--btn);color:#fff;border:none;font-weight:700;cursor:pointer;}
+button:hover{background:var(--btn-hover);}
+.hidden{display:none;}
+h2,h3{text-align:center;margin-top:0;}
+.status-circle{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;}
+.status-im{background:#2ecc71;}
+.status-abwesend{background:#f1c40f;}
+.status-test{background:#3498db;}
+.status-urlaub{background:#e74c3c;}
+.history{font-size:0.85em;color:#555;margin-top:10px;padding:10px;border:1px solid #ccc;border-radius:6px;}
+#passwordResetBox{margin-top:15px;padding:10px;border:1px solid #ccc;border-radius:6px;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN & REGISTRATION -->
+<div class="box" id="loginBox">
+  <h2>Login</h2>
+  <input id="user" placeholder="Name">
+  <input id="pass" type="password" placeholder="Passwort">
+  <button onclick="login()">Login</button>
+
+  <h3>Registrieren</h3>
+  <input id="ru" placeholder="Name">
+  <input id="rp" type="password" placeholder="Passwort">
+  <select id="registerStudioSelect">
+    <option value="">Neues Studio erstellen</option>
+  </select>
+  <input id="registerNewStudio" placeholder="Name des neuen Studios">
+  <button onclick="register()">Registrieren</button>
+</div>
+
+<!-- DASHBOARD -->
+<div class="box hidden" id="app">
+  <h2 id="welcome"></h2>
+  <p>Rolle: <b id="roleText"></b></p>
+  <button onclick="goAdmin()">Admin-Panel</button>
+  <button onclick="toggleDark()">🌙 Dark Mode</button>
+  <button onclick="logout()">Logout</button>
+
+  <hr>
+
+  <h3>Studios</h3>
+  <select id="studioSelect"></select>
+  <input id="userNewStudio" placeholder="Neues Studio erstellen">
+  <button onclick="addUserStudio()">Studio erstellen</button>
+  <button onclick="editUserStudio()">Studio bearbeiten</button>
+
+  <div id="userStudioStatus" class="hidden">
+    <h4>Mein Status</h4>
+    <select id="userStatusSelect" onchange="setUserStatus()">
+      <option>Im Studio</option>
+      <option>Abwesend</option>
+      <option>Im Test-System</option>
+      <option>Urlaub</option>
+    </select>
+  </div>
+
+  <div id="studioUsers" class="hidden">
+    <h4>Mitglieder</h4>
+    <ul id="studioUserList"></ul>
+  </div>
+
+  <div id="studioMessage" class="hidden">
+    <h4>Nachricht senden</h4>
+    <input id="msgText" placeholder="Nachricht">
+    <button onclick="sendStudioMessage()">Senden</button>
+  </div>
+
+  <div id="studioMessages" class="hidden">
+    <h4>Studio-Nachrichten</h4>
+    <ul id="msgList"></ul>
+  </div>
+
+  <button id="leaveStudioBtn" class="hidden" onclick="leaveStudio()">Studio verlassen</button>
+
+  <hr>
+
+  <!-- Passwort ändern eigenes Konto -->
+  <div id="pwResetArea">
+    <h3>Passwort ändern (für dich)</h3>
+    <input id="oldPw" type="password" placeholder="Altes Passwort">
+    <input id="newPw" type="password" placeholder="Neues Passwort">
+    <button onclick="changePw()">Ändern</button>
+  </div>
+
+  <!-- Passwort reset für andere, nur Owner -->
+  <div id="passwordResetBox" class="hidden">
+    <h3>Passwort zurücksetzen (nur für andere)</h3>
+    <input id="resetUsername" placeholder="Benutzername">
+    <input id="resetNewPw" type="password" placeholder="Neues Passwort">
+    <button onclick="resetUserPw()">Reset</button>
+  </div>
+
+  <!-- Historie, nur für Owner -->
+  <div id="historyBox" class="hidden">
+    <h3>Benutzerhistorie</h3>
+    <div id="historyContent" class="history"></div>
+  </div>
+</div>
+
+<script>
+let users = JSON.parse(localStorage.getItem('users')) || [];
+let studios = JSON.parse(localStorage.getItem('studios')) || [];
+let history = JSON.parse(localStorage.getItem('history')) || [];
+let currentUser = null;
+
+// Save all data
+const save = ()=> {
+  localStorage.setItem('users', JSON.stringify(users));
+  localStorage.setItem('studios', JSON.stringify(studios));
+  localStorage.setItem('history', JSON.stringify(history));
+};
+
+// SHA-256 hashing
+async function hash(str){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// ===== INIT USERS =====
+(async()=>{
+  // Remove empty names
+  users = users.filter(u => u.name && u.name.trim()!=='');
+  
+  // Remove duplicate Owners (keep first)
+  let ownerIndex = users.findIndex(u => u.role==='owner');
+  if(ownerIndex !== -1){
+    users = users.filter((u,i)=>!(u.name.toLowerCase()==='owner' && u.role!=='owner' && i!==ownerIndex));
+  }
+
+  // Owner exists?
+  if(!users.find(u=>u.role==='owner')){
+    users.push({name:'Owner', role:'owner', pwHash: await hash('1234')});
+    history.push({user:'Owner', action:'Owner Account erstellt', time:Date.now()});
+  }
+
+  // Hash existing passwords
+  for(let u of users){
+    if(u.pw && !u.pwHash){
+      u.pwHash = await hash(u.pw);
+      delete u.pw;
+    }
+  }
+
+  // Default password Timo
+  let timo = users.find(u=>u.name.toLowerCase()==='timo');
+  if(timo && (!timo.pwHash || timo.pwHash.trim()==='')){
+    timo.pwHash = await hash('1234');
+  }
+
+  save();
+
+  // Restore Dark Mode
+  if(localStorage.getItem('dark')==='1') document.body.classList.add('dark');
+})();
+
+// ===== LOGIN =====
+async function login(){
+  const username = user.value.trim().toLowerCase();
+  let u = users.find(x=>x.name.toLowerCase()===username);
+  if(!u) return alert("Login falsch");
+  if(await hash(pass.value)!==u.pwHash) return alert("Login falsch");
+
+  currentUser = u;
+  loginBox.classList.add('hidden'); 
+  app.classList.remove('hidden');
+  welcome.textContent = "Hallo " + u.name;
+  roleText.textContent = u.role;
+
+  loadStudios();
+  loadStudiosForRegister();
+  updateUIForRole();
+}
+
+// ===== REGISTER =====
+async function register(){
+  const username = ru.value.trim();
+  if(users.some(x=>x.name.toLowerCase()===username.toLowerCase())) return alert("User existiert");
+  const newUser = {name:username, role:'member', pwHash:await hash(rp.value)};
+  const selectedStudio = registerStudioSelect.value;
+  const newStudioName = registerNewStudio.value.trim();
+
+  if(newStudioName){
+    const studio = {id:Date.now(), name:newStudioName, users:[{name:username,status:'Im Studio'}], messages:[]};
+    studios.push(studio);
+  } else if(selectedStudio){
+    const studio = studios.find(s => s.id == selectedStudio);
+    if(studio) studio.users.push({name:username,status:'Im Studio'});
+  }
+
+  users.push(newUser);
+  history.push({user:username, action:'Registriert', time:Date.now()});
+  save();
+  alert("Registriert und Studio zugewiesen");
+  loadStudiosForRegister();
+}
+
+// ===== UI nach Rolle =====
+function updateUIForRole(){
+  if(currentUser.role==='owner'){
+    passwordResetBox.classList.remove('hidden');
+    historyBox.classList.remove('hidden');
+    renderHistory();
+  }
+}
+
+// ===== PASSWORD CHANGE =====
+async function changePw(){
+  if(await hash(oldPw.value)!==currentUser.pwHash) return alert("Falsches Passwort");
+  currentUser.pwHash = await hash(newPw.value);
+  history.push({user:currentUser.name, action:'Passwort geändert', time:Date.now()});
+  save();
+  alert("Passwort geändert");
+}
+
+// ===== PASSWORD RESET OTHER USERS =====
+async function resetUserPw(){
+  if(currentUser.role!=='owner') return alert("Kein Zugriff");
+  const username = resetUsername.value.trim().toLowerCase();
+  const newPwVal = resetNewPw.value.trim();
+  if(!username || !newPwVal) return alert("Bitte alles ausfüllen");
+
+  const u = users.find(x=>x.name.toLowerCase()===username);
+  if(!u) return alert("Benutzer nicht gefunden");
+  if(u.role==='owner') return alert("Owner Passwort darf nur selbst geändert werden");
+
+  u.pwHash = await hash(newPwVal);
+  history.push({user:u.name, action:'Passwort vom Owner zurückgesetzt', time:Date.now()});
+  save();
+  alert("Passwort zurückgesetzt");
+  resetUsername.value=''; resetNewPw.value='';
+  renderHistory();
+}
+
+// ===== HISTORY =====
+function renderHistory(){
+  historyContent.innerHTML='';
+  history.forEach(h=>{
+    const d = new Date(h.time).toLocaleString();
+    historyContent.innerHTML += `[${d}] ${h.user}: ${h.action}<br>`;
+  });
+}
+
+// ===== DARK MODE =====
+function toggleDark(){
+  document.body.classList.toggle('dark');
+  localStorage.setItem('dark', document.body.classList.contains('dark')?'1':'0');
+}
+
+// ===== LOGOUT =====
+function logout(){location.reload();}
+
+// ===== STUDIOS FUNCTIONS =====
+function loadStudios(){
+  studioSelect.innerHTML='';
+  studios.forEach(s=>{
+    const o=document.createElement('option'); o.value=s.id; o.textContent=s.name;
+    studioSelect.appendChild(o);
+  });
+  if(studios.length>0){ showUserStudioSections(); renderStudioUsers(); renderStudioMessages(); }
+}
+
+function loadStudiosForRegister(){
+  registerStudioSelect.innerHTML='<option value="">Neues Studio erstellen</option>';
+  studios.forEach(s=>{
+    const o=document.createElement('option'); o.value=s.id; o.textContent=s.name;
+    registerStudioSelect.appendChild(o);
+  });
+}
+
+function addUserStudio(){
+  const name = userNewStudio.value.trim();
+  if(!name) return alert("Gib Name ein!");
+  const newStudio = {id:Date.now(), name:name, users:[{name:currentUser.name,status:'Im Studio'}], messages:[]};
+  studios.push(newStudio); save(); userNewStudio.value=''; loadStudios();
+  studioSelect.value=newStudio.id; showUserStudioSections(); renderStudioUsers(); renderStudioMessages();
+}
+
+function editUserStudio(){
+  const studio = studios.find(s => s.id==studioSelect.value);
+  if(!studio) return alert("Kein Studio ausgewählt");
+  const newName = prompt("Neuer Studio-Name:", studio.name);
+  if(newName && newName.trim()!=='') { studio.name=newName.trim(); save(); loadStudios(); alert("Studio-Name geändert"); }
+}
+
+function setUserStatus(){
+  const studio = studios.find(s=>s.id==studioSelect.value); if(!studio) return;
+  let entry = studio.users.find(u=>u.name===currentUser.name);
+  if(!entry){ entry={name:currentUser.name,status:'Im Studio'}; studio.users.push(entry);}
+  entry.status=userStatusSelect.value; save(); renderStudioUsers();
+}
+
+function renderStudioUsers(){
+  const studio = studios.find(s=>s.id==studioSelect.value); if(!studio) return;
+  studioUsers.classList.remove('hidden'); studioUserList.innerHTML='';
+  studio.users.forEach(u=>{
+    const li=document.createElement('li'); const c=document.createElement('span'); c.className='status-circle';
+    if(u.status==='Im Studio') c.classList.add('status-im');
+    else if(u.status==='Abwesend') c.classList.add('status-abwesend');
+    else if(u.status==='Im Test-System') c.classList.add('status-test');
+    else if(u.status==='Urlaub') c.classList.add('status-urlaub');
+    li.appendChild(c); li.appendChild(document.createTextNode(u.name+" - "+u.status)); studioUserList.appendChild(li);
+  });
+  studioMessage.classList.remove('hidden'); studioMessages.classList.remove('hidden'); userStudioStatus.classList.remove('hidden'); leaveStudioBtn.classList.remove('hidden');
+}
+
+function sendStudioMessage(){
+  const text = msgText.value.trim(); if(!text) return alert("Nachricht eingeben!");
+  const studio = studios.find(s=>s.id==studioSelect.value); if(!studio.messages) studio.messages=[];
+  studio.messages.push({from:currentUser.name,text,time:Date.now()}); save(); msgText.value=''; renderStudioMessages();
+}
+
+function renderStudioMessages(){
+  const studio = studios.find(s=>s.id==studioSelect.value); if(!studio || !studio.messages) return;
+  msgList.innerHTML=''; studioMessages.classList.remove('hidden');
+  studio.messages.forEach(m=>{
+    const li=document.createElement('li'); li.textContent=`[${new Date(m.time).toLocaleTimeString()}] ${m.from}: ${m.text}`; msgList.appendChild(li);
+  });
+}
+
+function leaveStudio(){
+  const studio = studios.find(s=>s.id==studioSelect.value); if(!studio) return;
+  studio.users = studio.users.filter(u=>u.name!==currentUser.name); save(); renderStudioUsers();
+  alert("Verlassen"); studioUsers.classList.add('hidden'); studioMessages.classList.add('hidden'); userStudioStatus.classList.add('hidden'); leaveStudioBtn.classList.add('hidden');
+}
+
+studioSelect.onchange=()=>{
+  const studio = studios.find(s=>s.id==studioSelect.value); if(!studio) return;
+  const entry = studio.users.find(u=>u.name===currentUser.name);
+  userStatusSelect.value=entry?entry.status:'Im Studio';
+  renderStudioUsers(); renderStudioMessages();
+};
+
+function showUserStudioSections(){ userStudioStatus.classList.remove('hidden'); studioUsers.classList.remove('hidden'); studioMessage.classList.remove('hidden'); studioMessages.classList.remove('hidden'); leaveStudioBtn.classList.remove('hidden'); }
+
+// Admin Navigation
+function goAdmin(){if(currentUser.role==='member') return alert("Kein Zugriff"); location.href="admin.html";}
+</script>
+</body>
+</html>
