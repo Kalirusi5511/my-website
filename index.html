@@ -19,10 +19,13 @@ h2,h3{text-align:center;margin-top:0;}
 .status-abwesend{background:#f1c40f;}
 .status-test{background:#3498db;}
 .status-urlaub{background:#e74c3c;}
+.history{font-size:0.85em;color:#555;margin-top:10px;padding:10px;border:1px solid #ccc;border-radius:6px;}
+#passwordResetBox{margin-top:15px;padding:10px;border:1px solid #ccc;border-radius:6px;}
 </style>
 </head>
 <body>
 
+<!-- LOGIN & REGISTRIERUNG -->
 <div class="box" id="loginBox">
   <h2>Login</h2>
   <input id="user" placeholder="Name">
@@ -39,6 +42,7 @@ h2,h3{text-align:center;margin-top:0;}
   <button onclick="register()">Registrieren</button>
 </div>
 
+<!-- DASHBOARD -->
 <div class="box hidden" id="app">
   <h2 id="welcome"></h2>
   <p>Rolle: <b id="roleText"></b></p>
@@ -84,26 +88,44 @@ h2,h3{text-align:center;margin-top:0;}
 
   <hr>
 
+  <!-- Passwort ändern für eigenen Account -->
   <div id="pwResetArea">
-    <h3>Passwort ändern</h3>
+    <h3>Passwort ändern (für dich)</h3>
     <input id="oldPw" type="password" placeholder="Altes Passwort">
     <input id="newPw" type="password" placeholder="Neues Passwort">
     <button onclick="changePw()">Ändern</button>
   </div>
+
+  <!-- Passwort-Reset für andere Benutzer, nur sichtbar für Admin/Owner -->
+  <div id="passwordResetBox" class="hidden">
+    <h3>Passwort zurücksetzen (nur für andere)</h3>
+    <input id="resetUsername" placeholder="Benutzername">
+    <input id="resetNewPw" type="password" placeholder="Neues Passwort">
+    <button onclick="resetUserPw()">Reset</button>
+  </div>
+
+  <!-- Historie, nur für Owner -->
+  <div id="historyBox" class="hidden">
+    <h3>Benutzerhistorie</h3>
+    <div id="historyContent" class="history"></div>
+  </div>
+
 </div>
 
 <script>
 let users = JSON.parse(localStorage.getItem('users')) || [];
 let studios = JSON.parse(localStorage.getItem('studios')) || [];
+let history = JSON.parse(localStorage.getItem('history')) || [];
 let currentUser = null;
 
-const save = ()=>{ 
-  localStorage.setItem('users',JSON.stringify(users)); 
-  localStorage.setItem('studios',JSON.stringify(studios)); 
+const save = ()=>{
+  localStorage.setItem('users', JSON.stringify(users));
+  localStorage.setItem('studios', JSON.stringify(studios));
+  localStorage.setItem('history', JSON.stringify(history));
 };
 
-async function hash(str){ 
-  const buf = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(str)); 
+async function hash(str){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
   return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
@@ -115,84 +137,120 @@ async function hash(str){
       delete u.pw;
     }
   }
-  // Owner nur einmal anlegen, wenn noch nicht vorhanden
   if(!users.find(u=>u.role==='owner')){
-    users.push({name:'Owner',role:'owner',pwHash:await hash('1234')});
-    save();
+    users.push({name:'Owner', role:'owner', pwHash: await hash('1234')});
+    history.push({user:'Owner', action:'Owner Account erstellt', time:Date.now()});
   }
+  save();
 })();
 
 // ===== LOGIN =====
 async function login(){
-  let u = users.find(x=>x.name===user.value);
-  if(!u && user.value.toLowerCase()==='owner') u = users.find(x=>x.role==='owner');
-  if(!u || await hash(pass.value)!==u.pwHash) return alert("Login falsch");
-  currentUser=u;
+  let u = users.find(x=>x.name.toLowerCase()===user.value.trim().toLowerCase());
+  if(!u) return alert("Login falsch");
+  if(await hash(pass.value)!==u.pwHash) return alert("Login falsch");
+
+  currentUser = u;
   loginBox.classList.add('hidden'); app.classList.remove('hidden');
-  welcome.textContent = "Hallo "+u.name; roleText.textContent = u.role;
+  welcome.textContent = "Hallo "+u.name;
+  roleText.textContent = u.role;
+
   loadStudios(); loadStudiosForRegister();
+  updateUIForRole();
 }
 
 // ===== REGISTER =====
 async function register(){
-  if(users.some(x=>x.name===ru.value)) return alert("User existiert");
-  const newUser = {name:ru.value,role:'member',pwHash:await hash(rp.value)};
-  
-  const selectedStudio = document.getElementById('registerStudioSelect').value;
-  const newStudioName = document.getElementById('registerNewStudio').value.trim();
-  
-  if(newStudioName) {
-    const studio = {id:Date.now(), name:newStudioName, users:[{name:ru.value,status:'Im Studio'}], messages:[]};
+  const username = ru.value.trim();
+  if(users.some(x=>x.name.toLowerCase()===username.toLowerCase())) return alert("User existiert");
+  const newUser = {name:username, role:'member', pwHash:await hash(rp.value)};
+  const selectedStudio = registerStudioSelect.value;
+  const newStudioName = registerNewStudio.value.trim();
+
+  if(newStudioName){
+    const studio = {id:Date.now(), name:newStudioName, users:[{name:username, status:'Im Studio'}], messages:[]};
     studios.push(studio);
-  } else if(selectedStudio) {
+  } else if(selectedStudio){
     const studio = studios.find(s => s.id == selectedStudio);
-    if(studio) studio.users.push({name:ru.value,status:'Im Studio'});
+    if(studio) studio.users.push({name:username,status:'Im Studio'});
   }
 
   users.push(newUser);
-  save(); alert("Registriert und Studio zugewiesen");
+  history.push({user:username, action:'Registriert', time:Date.now()});
+  save();
+  alert("Registriert und Studio zugewiesen");
   loadStudiosForRegister();
 }
 
-// ===== ADMIN NAV =====
-function goAdmin(){ if(currentUser.role==='member') return alert("Kein Zugriff"); location.href="admin.html"; }
-function logout(){location.reload();}
+// ===== UI nach Rolle =====
+function updateUIForRole(){
+  if(currentUser.role==='owner'){
+    passwordResetBox.classList.remove('hidden');
+    historyBox.classList.remove('hidden');
+    renderHistory();
+  }
+}
 
-// ===== DARK MODE =====
-function toggleDark(){ document.body.classList.toggle('dark'); localStorage.setItem('dark',document.body.classList.contains('dark')?'1':'0'); }
-if(localStorage.getItem('dark')==='1') document.body.classList.add('dark');
-
-// ===== PASSWORD CHANGE =====
+// ===== PASSWORD CHANGE (Eigener Account) =====
 async function changePw(){
   if(await hash(oldPw.value)!==currentUser.pwHash) return alert("Falsches Passwort");
   currentUser.pwHash = await hash(newPw.value);
+  history.push({user:currentUser.name, action:'Passwort geändert', time:Date.now()});
   save();
   alert("Passwort geändert");
+}
+
+// ===== PASSWORD RESET für andere Benutzer =====
+async function resetUserPw(){
+  if(currentUser.role!=='owner') return alert("Kein Zugriff");
+  const username = resetUsername.value.trim().toLowerCase();
+  const newPwVal = resetNewPw.value.trim();
+  if(!username || !newPwVal) return alert("Bitte alles ausfüllen");
+
+  const u = users.find(x=>x.name.toLowerCase()===username);
+  if(!u) return alert("Benutzer nicht gefunden");
+  if(u.role==='owner') return alert("Owner Passwort darf nur selbst geändert werden");
+
+  u.pwHash = await hash(newPwVal);
+  history.push({user:u.name, action:'Passwort vom Owner zurückgesetzt', time:Date.now()});
+  save();
+  alert("Passwort zurückgesetzt");
+  resetUsername.value=''; resetNewPw.value='';
+  renderHistory();
+}
+
+// ===== HISTORY RENDER =====
+function renderHistory(){
+  historyContent.innerHTML='';
+  history.forEach(h=>{
+    const d = new Date(h.time).toLocaleString();
+    historyContent.innerHTML += `[${d}] ${h.user}: ${h.action}<br>`;
+  });
 }
 
 // ===== STUDIOS =====
 function loadStudios(){
   studioSelect.innerHTML='';
   studios.forEach(s=>{
-    const o = document.createElement('option'); o.value=s.id; o.textContent=s.name;
+    const o=document.createElement('option'); o.value=s.id; o.textContent=s.name;
     studioSelect.appendChild(o);
   });
   if(studios.length>0){ showUserStudioSections(); renderStudioUsers(); renderStudioMessages(); }
 }
 
 function loadStudiosForRegister(){
-  const sel = document.getElementById('registerStudioSelect');
-  sel.innerHTML = '<option value="">Neues Studio erstellen</option>';
+  registerStudioSelect.innerHTML='<option value="">Neues Studio erstellen</option>';
   studios.forEach(s=>{
-    const o = document.createElement('option'); o.value=s.id; o.textContent=s.name;
-    sel.appendChild(o);
+    const o=document.createElement('option'); o.value=s.id; o.textContent=s.name;
+    registerStudioSelect.appendChild(o);
   });
 }
 
+// Studio Funktionen
 function addUserStudio(){
   const name = userNewStudio.value.trim();
   if(!name) return alert("Gib Name ein!");
-  const newStudio = {id:Date.now(),name:name,users:[{name:currentUser.name,status:'Im Studio'}],messages:[]};
+  const newStudio = {id:Date.now(), name:name, users:[{name:currentUser.name,status:'Im Studio'}], messages:[]};
   studios.push(newStudio); save(); userNewStudio.value=''; loadStudios();
   studioSelect.value=newStudio.id; showUserStudioSections(); renderStudioUsers(); renderStudioMessages();
 }
@@ -201,13 +259,13 @@ function editUserStudio(){
   const studio = studios.find(s => s.id == studioSelect.value);
   if(!studio) return alert("Kein Studio ausgewählt");
   const newName = prompt("Neuer Studio-Name:", studio.name);
-  if(newName && newName.trim() !== "") { studio.name = newName.trim(); save(); loadStudios(); alert("Studio-Name geändert"); }
+  if(newName && newName.trim()!=='') { studio.name=newName.trim(); save(); loadStudios(); alert("Studio-Name geändert"); }
 }
 
 function setUserStatus(){
   const studio = studios.find(s=>s.id==studioSelect.value); if(!studio) return;
-  let entry = studio.users.find(u=>u.name===currentUser.name); 
-  if(!entry) { entry={name:currentUser.name,status:'Im Studio'}; studio.users.push(entry);}
+  let entry = studio.users.find(u=>u.name===currentUser.name);
+  if(!entry){ entry={name:currentUser.name,status:'Im Studio'}; studio.users.push(entry);}
   entry.status=userStatusSelect.value; save(); renderStudioUsers();
 }
 
@@ -245,7 +303,8 @@ function leaveStudio(){
   alert("Verlassen"); studioUsers.classList.add('hidden'); studioMessages.classList.add('hidden'); userStudioStatus.classList.add('hidden'); leaveStudioBtn.classList.add('hidden');
 }
 
-studioSelect.onchange = ()=>{
+// UI Helfer
+studioSelect.onchange=()=>{
   const studio = studios.find(s=>s.id==studioSelect.value); if(!studio) return;
   const entry = studio.users.find(u=>u.name===currentUser.name);
   userStatusSelect.value=entry?entry.status:'Im Studio';
@@ -253,7 +312,16 @@ studioSelect.onchange = ()=>{
 };
 
 function showUserStudioSections(){ userStudioStatus.classList.remove('hidden'); studioUsers.classList.remove('hidden'); studioMessage.classList.remove('hidden'); studioMessages.classList.remove('hidden'); leaveStudioBtn.classList.remove('hidden'); }
-</script>
 
+// Logout
+function logout(){location.reload();}
+
+// Dark Mode
+function toggleDark(){document.body.classList.toggle('dark'); localStorage.setItem('dark',document.body.classList.contains('dark')?'1':'0');}
+if(localStorage.getItem('dark')==='1') document.body.classList.add('dark');
+
+// Admin Navigation
+function goAdmin(){if(currentUser.role==='member') return alert("Kein Zugriff"); location.href="admin.html";}
+</script>
 </body>
 </html>
