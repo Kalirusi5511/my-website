@@ -2,456 +2,208 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Studio Dashboard Pro</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Studio Dashboard – Final Pro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
 <style>
-:root{--bg:#f4f4f4;--card:#fff;--text:#111;--btn:#4CAF50;--btn-hover:#45a049;--owner:#e74c3c;--admin:#9b59b6;}
-.dark{--bg:#121212;--card:#1e1e1e;--text:#eee;--btn:#3498db;--btn-hover:#2980b9;}
-body{font-family:sans-serif;background:var(--bg);color:var(--text);padding:12px}
-.box{max-width:800px;margin:auto;background:var(--card);padding:20px;border-radius:10px;box-shadow:0 3px 8px rgba(0,0,0,0.2);}
-input,select,button{padding:10px;margin:5px 0;width:100%;border-radius:6px;font-size:15px;}
-button{background:var(--btn);color:#fff;border:none;font-weight:700;cursor:pointer;}
-button:hover{background:var(--btn-hover);}
-.hidden{display:none;}
-h2,h3{text-align:center;margin-top:0;}
-.status-circle{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;}
-.status-im{background:#2ecc71;}
-.status-abwesend{background:#f1c40f;}
-.status-test{background:#3498db;}
-.status-urlaub{background:#e74c3c;}
-.history{font-size:0.85em;color:#555;margin-top:10px;padding:10px;border:1px solid #ccc;border-radius:6px;}
-.admin-section{border-left:4px solid var(--admin);padding-left:10px;}
-.owner-section{border-left:4px solid var(--owner);padding-left:10px;}
-.role-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.8em;margin-left:8px;}
-.role-owner{background:var(--owner);color:white;}
-.role-admin{background:var(--admin);color:white;}
-.role-member{background:#7f8c8d;color:white;}
-.user-list li{margin:8px 0;display:flex;align-items:center;}
+:root{
+  --bg:#f4f4f4;--card:#fff;--text:#111;
+  --btn:#4CAF50;--btn-h:#45a049;
+  --owner:#e74c3c;--admin:#9b59b6;
+}
+.dark{
+  --bg:#121212;--card:#1e1e1e;--text:#eee;
+  --btn:#3498db;--btn-h:#2980b9;
+}
+body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--text);padding:12px}
+.box{max-width:900px;margin:auto;background:var(--card);padding:20px;border-radius:10px;box-shadow:0 3px 8px rgba(0,0,0,.2)}
+input,select,button{width:100%;padding:10px;margin:6px 0;border-radius:6px;font-size:15px}
+button{background:var(--btn);color:#fff;border:none;font-weight:700;cursor:pointer}
+button:hover{background:var(--btn-h)}
+.hidden{display:none}
+.role-owner{color:var(--owner);font-weight:700}
+.role-admin{color:var(--admin);font-weight:700}
+hr{margin:20px 0}
+
+@media(max-width:600px){
+  .box{padding:14px}
+  input,button{font-size:16px}
+}
 </style>
 </head>
 <body>
 
-<!-- LOGIN & REGISTRATION -->
 <div class="box" id="loginBox">
   <h2>Login</h2>
-  <input id="user" placeholder="Name">
-  <input id="pass" type="password" placeholder="Passwort">
+  <input id="loginUser" placeholder="Name">
+  <input id="loginPw" type="password" placeholder="Passwort">
   <button onclick="login()">Login</button>
 
   <h3>Registrieren</h3>
-  <input id="ru" placeholder="Name">
-  <input id="rp" type="password" placeholder="Passwort">
-  <select id="registerStudioSelect">
-    <option value="">Neues Studio erstellen</option>
-  </select>
-  <input id="registerNewStudio" placeholder="Name des neuen Studios">
+  <input id="regUser" placeholder="Name">
+  <input id="regPw" type="password" placeholder="Passwort">
   <button onclick="register()">Registrieren</button>
+
+  <!-- ONE TIME OWNER RECOVERY -->
+  <div id="recoveryBox" class="hidden">
+    <hr>
+    <h3>Owner-Recovery (einmalig)</h3>
+    <input id="recoveryKey" placeholder="Recovery-Key">
+    <input id="newOwnerPw" type="password" placeholder="Neues Owner-Passwort">
+    <button onclick="ownerRecovery()">Recovery ausführen</button>
+  </div>
 </div>
 
-<!-- DASHBOARD -->
 <div class="box hidden" id="app">
   <h2 id="welcome"></h2>
-  <p>Rolle: <b id="roleText"></b></p>
-  <button onclick="goAdmin()">Admin-Panel</button>
+  <p>Rolle: <span id="role"></span></p>
+
   <button onclick="toggleDark()">🌙 Dark Mode</button>
   <button onclick="logout()">Logout</button>
 
   <hr>
 
-  <h3>Studios</h3>
-  <select id="studioSelect"></select>
-  <input id="userNewStudio" placeholder="Neues Studio erstellen">
-  <button onclick="addUserStudio()">Studio erstellen</button>
-  <button onclick="editUserStudio()">Studio bearbeiten</button>
-  <button onclick="deleteStudio()" class="hidden" id="deleteStudioBtn">Studio löschen</button>
+  <h3>Passwort ändern</h3>
+  <input id="oldPw" type="password" placeholder="Altes Passwort">
+  <input id="newPw" type="password" placeholder="Neues Passwort">
+  <button onclick="changePw()">Ändern</button>
 
-  <div id="userStudioStatus" class="hidden">
-    <h4>Mein Status</h4>
-    <select id="userStatusSelect" onchange="setUserStatus()">
-      <option>Im Studio</option>
-      <option>Abwesend</option>
-      <option>Im Test-System</option>
-      <option>Urlaub</option>
-    </select>
-  </div>
+  <div id="adminArea" class="hidden">
+    <hr>
+    <h3>Admin / Owner</h3>
 
-  <div id="studioUsers" class="hidden">
-    <h4>Mitglieder</h4>
-    <ul id="studioUserList" class="user-list"></ul>
-  </div>
-
-  <div id="studioMessage" class="hidden">
-    <h4>Nachricht senden</h4>
-    <input id="msgText" placeholder="Nachricht">
-    <button onclick="sendStudioMessage()">Senden</button>
-  </div>
-
-  <div id="studioMessages" class="hidden">
-    <h4>Studio-Nachrichten</h4>
-    <ul id="msgList"></ul>
-  </div>
-
-  <button id="leaveStudioBtn" class="hidden" onclick="leaveStudio()">Studio verlassen</button>
-
-  <hr>
-
-  <!-- Passwort ändern eigenes Konto -->
-  <div id="pwResetArea">
-    <h3>Passwort ändern (für dich)</h3>
-    <input id="oldPw" type="password" placeholder="Altes Passwort">
-    <input id="newPw" type="password" placeholder="Neues Passwort">
-    <button onclick="changePw()">Ändern</button>
-  </div>
-
-  <!-- Passwort reset für andere, nur Owner/Admin -->
-  <div id="passwordResetBox" class="hidden admin-section">
-    <h3>Passwort zurücksetzen (für andere Benutzer)</h3>
-    <input id="resetUsername" placeholder="Benutzername">
-    <input id="resetNewPw" type="password" placeholder="Neues Passwort">
+    <h4>Passwort zurücksetzen</h4>
+    <input id="resetUser" placeholder="Benutzer">
+    <input id="resetPw" type="password" placeholder="Neues Passwort">
     <button onclick="resetUserPw()">Reset</button>
-  </div>
 
-  <!-- Historie, nur für Owner -->
-  <div id="historyBox" class="hidden owner-section">
-    <h3>Benutzerhistorie</h3>
-    <div id="historyContent" class="history"></div>
-  </div>
-
-  <!-- Admin Panel (Modal) -->
-  <div id="adminModal" class="hidden">
-    <div class="box">
-      <h2>Admin Panel</h2>
-      <h3>Benutzerverwaltung</h3>
-      <ul id="adminUserList" class="user-list"></ul>
-      
-      <h3>Studio-Verwaltung</h3>
-      <select id="adminStudioSelect"></select>
-      <button onclick="deleteStudioAdmin()">Studio löschen</button>
-      
-      <button onclick="closeAdmin()">Schließen</button>
-    </div>
+    <h4>Backup</h4>
+    <button onclick="exportData()">Export</button>
+    <input type="file" onchange="importData(this)">
   </div>
 </div>
 
 <script>
-let users = JSON.parse(localStorage.getItem('users')) || [];
-let studios = JSON.parse(localStorage.getItem('studios')) || [];
-let history = JSON.parse(localStorage.getItem('history')) || [];
+/* ================= CONFIG ================= */
+const DEBUG = false;
+const RECOVERY_KEY = "FINAL-OWNER-KEY-2025";
+
+/* ================= STORAGE ================= */
+let users = JSON.parse(localStorage.getItem("users")) || [];
 let currentUser = null;
 
-// Save all data
-const save = ()=> {
-  localStorage.setItem('users', JSON.stringify(users));
-  localStorage.setItem('studios', JSON.stringify(studios));
-  localStorage.setItem('history', JSON.stringify(history));
-};
+const save=()=>localStorage.setItem("users",JSON.stringify(users));
 
-// SHA-256 hashing
-async function hash(str){
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
-  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+/* ================= HASH ================= */
+async function hash(t){
+  const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(t));
+  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
 }
 
-// ===== INIT USERS =====
+/* ================= INIT ================= */
 (async()=>{
-  users = users.filter(u => u.name && u.name.trim() !== '');
-  
-  // Ensure at least one owner exists
-  if(!users.some(u => u.role === 'owner')){
-    users.push({
-      name: 'Owner', 
-      role: 'owner', 
-      pwHash: await hash('1234')
-    });
-    history.push({
-      user: 'System', 
-      action: 'Default Owner Account erstellt', 
-      time: Date.now()
-    });
+  if(!users.some(u=>u.role==="owner")){
+    users.push({name:"Owner",role:"owner",pwHash:await hash("1234")});
+    localStorage.setItem("ownerRecovery","1");
   }
-
-  // Hash existing passwords
-  for(let u of users){
-    if(u.pw && !u.pwHash){
-      u.pwHash = await hash(u.pw);
-      delete u.pw;
-    }
-    if(!u.pwHash) u.pwHash = await hash('default123');
-  }
-
   save();
+  if(localStorage.getItem("ownerRecovery")==="1")
+    recoveryBox.classList.remove("hidden");
 
-  // Restore Dark Mode
-  if(localStorage.getItem('dark') === '1') document.body.classList.add('dark');
+  if(localStorage.getItem("dark")==="1")
+    document.body.classList.add("dark");
 })();
 
-// ===== ROLE-BASED ACCESS CONTROL =====
-function isOwner() { return currentUser?.role === 'owner'; }
-function isAdmin() { return currentUser?.role === 'admin' || isOwner(); }
-
-// ===== LOGIN =====
+/* ================= LOGIN ================= */
 async function login(){
-  const username = user.value.trim().toLowerCase();
-  let u = users.find(x => x.name.toLowerCase() === username);
-  if(!u) return alert("Benutzer nicht gefunden");
-  if(await hash(pass.value) !== u.pwHash) return alert("Falsches Passwort");
+  const n=loginUser.value.trim().toLowerCase();
+  const u=users.find(x=>x.name.toLowerCase()===n);
+  if(!u) return alert("User nicht gefunden");
+  if(await hash(loginPw.value)!==u.pwHash) return alert("Falsches Passwort");
 
-  currentUser = u;
-  loginBox.classList.add('hidden'); 
-  app.classList.remove('hidden');
-  welcome.textContent = "Hallo " + u.name;
-  roleText.textContent = u.role === 'owner' ? 'Besitzer' : 
-                         u.role === 'admin' ? 'Administrator' : 'Mitglied';
+  currentUser=u;
+  loginBox.classList.add("hidden");
+  app.classList.remove("hidden");
+  welcome.textContent="Hallo "+u.name;
+  role.textContent=u.role;
+  role.className=u.role==="owner"?"role-owner":"role-admin";
 
-  loadStudios();
-  loadStudiosForRegister();
-  updateUIForRole();
+  adminArea.classList.toggle("hidden",u.role==="member");
 }
 
-// ===== REGISTER =====
+/* ================= REGISTER ================= */
 async function register(){
-  const username = ru.value.trim();
-  if(!username) return alert("Benutzername erforderlich");
-  if(users.some(x => x.name.toLowerCase() === username.toLowerCase())) 
-    return alert("Benutzer existiert bereits");
-  
-  const newUser = {
-    name: username,
-    role: 'member',
-    pwHash: await hash(rp.value)
-  };
-  
-  const selectedStudio = registerStudioSelect.value;
-  const newStudioName = registerNewStudio.value.trim();
-
-  if(newStudioName){
-    const studio = {
-      id: Date.now(),
-      name: newStudioName,
-      owner: username,
-      users: [{name: username, status: 'Im Studio'}],
-      messages: []
-    };
-    studios.push(studio);
-    newUser.role = 'admin'; // Studio creator becomes admin
-  } 
-  else if(selectedStudio){
-    const studio = studios.find(s => s.id == selectedStudio);
-    if(studio) studio.users.push({name: username, status: 'Im Studio'});
-  }
-
-  users.push(newUser);
-  history.push({
-    user: username,
-    action: 'Registriert',
-    time: Date.now()
-  });
-  
+  const n=regUser.value.trim();
+  if(!n) return;
+  if(users.some(u=>u.name.toLowerCase()===n.toLowerCase()))
+    return alert("Existiert schon");
+  users.push({name:n,role:"member",pwHash:await hash(regPw.value)});
   save();
-  alert("Registrierung erfolgreich!");
-  loadStudiosForRegister();
+  alert("Registriert");
 }
 
-// ===== UI nach Rolle =====
-function updateUIForRole(){
-  // Show password reset for admins/owners
-  passwordResetBox.classList.toggle('hidden', !isAdmin());
-  
-  // Show history only for owner
-  historyBox.classList.toggle('hidden', !isOwner());
-  
-  // Show delete button for studio owners/admins
-  deleteStudioBtn.classList.toggle('hidden', !isAdmin());
-}
-
-// ===== PASSWORD CHANGE =====
+/* ================= PASSWORDS ================= */
 async function changePw(){
-  if(await hash(oldPw.value) !== currentUser.pwHash) 
-    return alert("Falsches aktuelles Passwort");
-  
-  currentUser.pwHash = await hash(newPw.value);
-  history.push({
-    user: currentUser.name,
-    action: 'Passwort geändert',
-    time: Date.now()
-  });
-  
+  if(await hash(oldPw.value)!==currentUser.pwHash)
+    return alert("Falsch");
+  currentUser.pwHash=await hash(newPw.value);
   save();
-  alert("Passwort erfolgreich geändert");
-  oldPw.value = '';
-  newPw.value = '';
+  alert("Geändert");
 }
 
-// ===== PASSWORD RESET OTHER USERS =====
 async function resetUserPw(){
-  if(!isAdmin()) return alert("Keine Berechtigung");
-  
-  const username = resetUsername.value.trim();
-  const newPwVal = resetNewPw.value.trim();
-  if(!username || !newPwVal) return alert("Bitte alle Felder ausfüllen");
-
-  const targetUser = users.find(x => x.name === username);
-  if(!targetUser) return alert("Benutzer nicht gefunden");
-  
-  // Prevent resetting owner password by non-owners
-  if(targetUser.role === 'owner' && !isOwner()) 
-    return alert("Nur der Besitzer kann Owner-Passwörter ändern");
-  
-  targetUser.pwHash = await hash(newPwVal);
-  history.push({
-    user: currentUser.name,
-    action: `Passwort zurückgesetzt für ${username}`,
-    time: Date.now()
-  });
-  
+  if(currentUser.role==="member") return;
+  const u=users.find(x=>x.name===resetUser.value);
+  if(!u) return alert("Nicht gefunden");
+  if(u.role==="owner" && currentUser.role!=="owner")
+    return alert("Nur Owner");
+  u.pwHash=await hash(resetPw.value);
   save();
-  alert("Passwort erfolgreich zurückgesetzt");
-  resetUsername.value = '';
-  resetNewPw.value = '';
+  alert("Reset OK");
 }
 
-// ===== STUDIO MANAGEMENT =====
-function loadStudios(){
-  studioSelect.innerHTML = '';
-  studios.forEach(s => {
-    const option = document.createElement('option');
-    option.value = s.id;
-    option.textContent = s.name;
-    studioSelect.appendChild(option);
-  });
-  
-  if(studios.length > 0){
-    showUserStudioSections();
-    renderStudioUsers();
-    renderStudioMessages();
-  }
+/* ================= OWNER RECOVERY ================= */
+async function ownerRecovery(){
+  if(recoveryKey.value!==RECOVERY_KEY)
+    return alert("Key falsch");
+  const o=users.find(u=>u.role==="owner");
+  o.pwHash=await hash(newOwnerPw.value);
+  localStorage.removeItem("ownerRecovery");
+  recoveryBox.remove();
+  save();
+  alert("Owner-Passwort neu gesetzt");
 }
 
-function addUserStudio(){
-  const name = userNewStudio.value.trim();
-  if(!name) return alert("Studio-Name erforderlich");
-  
-  const newStudio = {
-    id: Date.now(),
-    name: name,
-    owner: currentUser.name,
-    users: [{name: currentUser.name, status: 'Im Studio'}],
-    messages: []
+/* ================= BACKUP ================= */
+function exportData(){
+  const d={users, dark:localStorage.getItem("dark")};
+  const b=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(b);
+  a.download="studio-backup.json";
+  a.click();
+}
+
+function importData(i){
+  const r=new FileReader();
+  r.onload=()=>{
+    const d=JSON.parse(r.result);
+    users=d.users||[];
+    localStorage.setItem("dark",d.dark||"0");
+    save();
+    alert("Import OK – neu laden");
+    location.reload();
   };
-  
-  studios.push(newStudio);
-  save();
-  userNewStudio.value = '';
-  loadStudios();
-  studioSelect.value = newStudio.id;
-  showUserStudioSections();
+  r.readAsText(i.files[0]);
 }
 
-function editUserStudio(){
-  const studioId = studioSelect.value;
-  const studio = studios.find(s => s.id == studioId);
-  if(!studio) return alert("Studio nicht gefunden");
-  
-  const newName = prompt("Neuen Studio-Namen eingern:", studio.name);
-  if(newName && newName.trim() !== ''){
-    studio.name = newName.trim();
-    save();
-    loadStudios();
-    alert("Studio aktualisiert");
-  }
-}
-
-function deleteStudio(){
-  if(!isAdmin()) return alert("Keine Berechtigung");
-  
-  const studioId = studioSelect.value;
-  const studio = studios.find(s => s.id == studioId);
-  if(!studio) return alert("Studio nicht gefunden");
-  
-  if(studio.owner !== currentUser.name && !isOwner())
-    return alert("Nur der Besitzer kann dieses Studio löschen");
-  
-  if(confirm(`Soll "${studio.name}" wirklich gelöscht werden?`)){
-    studios = studios.filter(s => s.id != studioId);
-    save();
-    loadStudios();
-    alert("Studio gelöscht");
-  }
-}
-
-// ===== ADMIN PANEL =====
-function goAdmin(){
-  if(!isAdmin()) return alert("Zugriff verweigert");
-  
-  // Render user list
-  adminUserList.innerHTML = '';
-  users.forEach(u => {
-    const li = document.createElement('li');
-    li.innerHTML = `
-      ${u.name} 
-      <span class="role-tag role-${u.role}">${
-        u.role === 'owner' ? 'Besitzer' : 
-        u.role === 'admin' ? 'Admin' : 'Mitglied'
-      }</span>
-      ${u.name !== currentUser.name ? `<button onclick="promoteUser('${u.name}')">Befördern</button>` : ''}
-    `;
-    adminUserList.appendChild(li);
-  });
-  
-  // Render studio list
-  adminStudioSelect.innerHTML = '';
-  studios.forEach(s => {
-    const option = document.createElement('option');
-    option.value = s.id;
-    option.textContent = s.name;
-    adminStudioSelect.appendChild(option);
-  });
-  
-  adminModal.classList.remove('hidden');
-}
-
-function promoteUser(username){
-  if(!isOwner()) return alert("Nur Besitzer können befördern");
-  
-  const user = users.find(u => u.name === username);
-  if(!user) return;
-  
-  if(user.role === 'owner') return;
-  
-  user.role = user.role === 'member' ? 'admin' : 'member';
-  save();
-  goAdmin(); // Refresh view
-}
-
-function closeAdmin(){
-  adminModal.classList.add('hidden');
-}
-
-// ===== HELPER FUNCTIONS =====
-function renderStudioUsers(){
-  const studioId = studioSelect.value;
-  const studio = studios.find(s => s.id == studioId);
-  if(!studio) return;
-  
-  studioUserList.innerHTML = '';
-  studio.users.forEach(u => {
-    const li = document.createElement('li');
-    li.innerHTML = `
-      <span class="status-circle status-${u.status.toLowerCase().replace(' ', '')}"></span>
-      ${u.name}
-    `;
-    studioUserList.appendChild(li);
-  });
-}
-
+/* ================= UI ================= */
 function toggleDark(){
-  document.body.classList.toggle('dark');
-  localStorage.setItem('dark', document.body.classList.contains('dark') ? '1' : '0');
+  document.body.classList.toggle("dark");
+  localStorage.setItem("dark",
+    document.body.classList.contains("dark")?"1":"0");
 }
-
-function logout(){ location.reload(); }
-
-// ... (Weitere Funktionen wie sendStudioMessage, leaveStudio, etc. bleiben ähnlich)
+function logout(){location.reload()}
 </script>
 </body>
 </html>
