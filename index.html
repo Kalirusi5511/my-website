@@ -71,6 +71,11 @@ hr { margin: 20px 0; }
 .studio button { margin-left: 6px; }
 
 #supportChat { max-height:200px; overflow:auto; border:1px solid #ccc; padding:6px; margin-bottom:6px; }
+#tableRequests { margin-top:10px; }
+
+table { border-collapse: collapse; margin-bottom: 15px; }
+table th, table td { border: 1px solid #111; padding: 6px; text-align: center; }
+table td { min-width: 50px; }
 
 @media(max-width:600px){
   .box{padding:14px}
@@ -90,6 +95,9 @@ hr { margin: 20px 0; }
   <input id="regUser" placeholder="Name">
   <input id="regPw" type="password" placeholder="Passwort">
   <button onclick="register()">Registrieren</button>
+
+  <!-- Startseiten-Button direkt auf Login-Seite -->
+  <button id="startBtn" class="hidden" onclick="goStart()">Startseite</button>
 </div>
 
 <div class="box hidden" id="app">
@@ -127,6 +135,9 @@ hr { margin: 20px 0; }
     <h4>Backup</h4>
     <button onclick="exportData()">Export</button>
     <input type="file" onchange="importData(this)">
+
+    <h4>Tabellen-Anfragen der User</h4>
+    <div id="tableRequests"></div>
   </div>
 
   <hr>
@@ -134,6 +145,16 @@ hr { margin: 20px 0; }
   <div id="studios">Keine Studios vorhanden.</div>
   <input id="studioName" placeholder="Studio Name">
   <button onclick="addStudio()">Studio hinzufügen</button>
+
+  <hr>
+  <h3>Tabellen anfragen</h3>
+  <input id="reqTables" type="number" min="1" placeholder="Anzahl Tabellen">
+  <button onclick="requestTables()">Anfrage senden</button>
+
+  <hr>
+  <h3>Deine Tabellen</h3>
+  <div id="myTables">Noch keine Tabellen freigegeben.</div>
+  <button onclick="saveTables()">Tabellen speichern</button>
 </div>
 
 <script>
@@ -152,7 +173,7 @@ async function hash(t){
   if(!users.some(u=>u.role==="owner")){
     let pw = prompt("Setze ein Passwort für den Owner:");
     if(!pw) pw = "default";
-    users.push({name:"Owner", role:"owner", pwHash: await hash(pw), studios:[], support:[]});
+    users.push({name:"Owner", role:"owner", pwHash: await hash(pw), studios:[], support:[], requestedTables:0, approvedTables:0, tablesData:[]});
     save();
     alert("Owner-Passwort gesetzt!");
   }
@@ -178,13 +199,19 @@ async function login(){
   adminArea.classList.toggle("hidden", u.role==="member");
   renderStudios();
   renderSupport();
+  renderRequests();
+  renderMyTables();
+
+  if(currentUser.role === "member"){
+    document.getElementById("startBtn").classList.remove("hidden");
+  }
 }
 
 async function register(){
   const n = regUser.value.trim();
   if(!n) return;
   if(users.some(u=>u.name.toLowerCase()===n.toLowerCase())) return alert("Existiert schon");
-  users.push({name:n, role:"member", pwHash:await hash(regPw.value), studios:[], support:[]});
+  users.push({name:n, role:"member", pwHash:await hash(regPw.value), studios:[], support:[], requestedTables:0, approvedTables:0, tablesData:[]});
   save();
   alert("Registriert");
 }
@@ -211,7 +238,7 @@ function createUser(){
   const name = newUserName.value.trim();
   if(!name) return;
   if(users.some(u=>u.name.toLowerCase()===name.toLowerCase())) return alert("Existiert schon");
-  users.push({name, role:"member", pwHash:"", studios:[], support:[]});
+  users.push({name, role:"member", pwHash:"", studios:[], support:[], requestedTables:0, approvedTables:0, tablesData:[]});
   save();
   alert("User freigeschaltet!");
 }
@@ -292,6 +319,128 @@ function renderSupport(){
     div.textContent = `[${m.time}] ${m.msg}`;
     container.appendChild(div);
   });
+}
+
+// ======== Tabellen-Anfragen ========
+function requestTables(){
+  const n = parseInt(reqTables.value);
+  if(!n || n<1) return alert("Gültige Zahl eingeben");
+  currentUser.requestedTables = n;
+  save();
+  alert("Anfrage gesendet. Bitte warten, bis Owner genehmigt.");
+  reqTables.value = "";
+  renderRequests();
+}
+
+function renderRequests(){
+  const container = document.getElementById("tableRequests");
+  container.innerHTML = "";
+  if(currentUser.role !== "owner") return;
+
+  users.forEach(u=>{
+    if(u.role==="member" && u.requestedTables > 0){
+      const div = document.createElement("div");
+      div.innerHTML = `${u.name} möchte ${u.requestedTables} Tabellen
+        <button onclick="approveTables('${u.name}')">Genehmigen</button>
+        <button onclick="declineTables('${u.name}')">Ablehnen</button>`;
+      container.appendChild(div);
+    }
+  });
+}
+
+function approveTables(userName){
+  const u = users.find(x=>x.name===userName);
+  if(u){
+    u.approvedTables = u.requestedTables;
+    u.requestedTables = 0;
+    // Tabellen initialisieren, falls leer
+    if(!u.tablesData || u.tablesData.length === 0){
+      u.tablesData = Array(u.approvedTables).fill(null).map(()=>Array(5).fill(["","","",""]));
+    }
+    save();
+    renderRequests();
+    alert(`${userName} wurde genehmigt`);
+  }
+}
+
+function declineTables(userName){
+  const u = users.find(x=>x.name===userName);
+  if(u){
+    u.requestedTables = 0;
+    save();
+    renderRequests();
+    alert(`${userName} wurde abgelehnt`);
+  }
+}
+
+// ======== Tabellen rendern ========
+function renderMyTables(){
+  const container = document.getElementById("myTables");
+  container.innerHTML = "";
+
+  if(currentUser.role !== "member") return;
+
+  const n = currentUser.approvedTables || 0;
+  if(n === 0){
+    container.textContent = "Noch keine Tabellen freigegeben.";
+    return;
+  }
+
+  for(let t=0; t<n; t++){
+    const tbl = document.createElement("table");
+
+    const header = tbl.createTHead();
+    const hRow = header.insertRow();
+    ["A","B","C","D"].forEach(h=>{
+      const th = document.createElement("th");
+      th.textContent = h;
+      hRow.appendChild(th);
+    });
+
+    const tbody = tbl.createTBody();
+    // Falls es gespeicherte Daten gibt, benutze diese
+    const tData = currentUser.tablesData && currentUser.tablesData[t] ? currentUser.tablesData[t] : Array(5).fill(["","","",""]);
+    tData.forEach(rData=>{
+      const row = tbody.insertRow();
+      rData.forEach(val=>{
+        const cell = row.insertCell();
+        cell.contentEditable = "true";
+        cell.textContent = val;
+      });
+    });
+
+    container.appendChild(document.createTextNode(`Tabelle ${t+1}`));
+    container.appendChild(tbl);
+  }
+}
+
+// ======== Tabellen speichern ========
+function saveTables(){
+  if(currentUser.role !== "member") return;
+  const tables = [];
+  const container = document.getElementById("myTables");
+  const htmlTables = container.getElementsByTagName("table");
+  for(let tbl of htmlTables){
+    const tData = [];
+    for(let r=0; r<tbl.rows.length-1; r++){ // skip header
+      const rowData = [];
+      const cells = tbl.rows[r+1].cells;
+      for(let c=0; c<cells.length; c++){
+        rowData.push(cells[c].textContent);
+      }
+      tData.push(rowData);
+    }
+    tables.push(tData);
+  }
+  currentUser.tablesData = tables;
+  save();
+  alert("Tabellen gespeichert!");
+}
+
+// ======== Startseite Button ========
+function goStart(){
+  renderMyTables();
+  alert(`Willkommen ${currentUser.name}! Du hast ${currentUser.approvedTables} Tabellen.`);
 }
 
 // ======== Dark Mode ========
