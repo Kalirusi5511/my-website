@@ -73,6 +73,18 @@ hr { margin: 20px 0; }
 #supportChat { max-height:200px; overflow:auto; border:1px solid #ccc; padding:6px; margin-bottom:6px; }
 #tableRequests { margin-top:10px; }
 
+#uploadFormContainer {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: var(--card);
+}
+#uploadFormContainer input, #uploadFormContainer button {
+  width: 100%;
+  margin: 6px 0;
+}
+
 table { border-collapse: collapse; margin-bottom: 15px; }
 table th, table td { border: 1px solid #111; padding: 6px; text-align: center; }
 table td { min-width: 50px; }
@@ -155,6 +167,17 @@ table td { min-width: 50px; }
   <h3>Deine Tabellen</h3>
   <div id="myTables">Noch keine Tabellen freigegeben.</div>
   <button onclick="saveTables()">Tabellen speichern</button>
+
+  <hr>
+  <h3>Ordner Upload</h3>
+  <button onclick="toggleUploadForm()">Ordner Upload öffnen</button>
+  <div id="uploadFormContainer" class="hidden">
+    <form action="/Upload-Ordner" method="post" enctype="multipart/form-data" target="_blank">
+      <input type="file" name="files" webkitdirectory multiple>
+      <br><br>
+      <button type="submit">Upload starten</button>
+    </form>
+  </div>
 </div>
 
 <script>
@@ -243,7 +266,7 @@ function createUser(){
   alert("User freigeschaltet!");
 }
 
-// ======== Studios mit Bearbeiten/Löschen ========
+// ======== Studios ========
 function renderStudios(){
   const container = document.getElementById("studios");
   container.innerHTML = "";
@@ -353,7 +376,6 @@ function approveTables(userName){
   if(u){
     u.approvedTables = u.requestedTables;
     u.requestedTables = 0;
-    // Tabellen initialisieren, falls leer
     if(!u.tablesData || u.tablesData.length === 0){
       u.tablesData = Array(u.approvedTables).fill(null).map(()=>Array(5).fill(["","","",""]));
     }
@@ -398,7 +420,6 @@ function renderMyTables(){
     });
 
     const tbody = tbl.createTBody();
-    // Falls es gespeicherte Daten gibt, benutze diese
     const tData = currentUser.tablesData && currentUser.tablesData[t] ? currentUser.tablesData[t] : Array(5).fill(["","","",""]);
     tData.forEach(rData=>{
       const row = tbody.insertRow();
@@ -422,7 +443,7 @@ function saveTables(){
   const htmlTables = container.getElementsByTagName("table");
   for(let tbl of htmlTables){
     const tData = [];
-    for(let r=0; r<tbl.rows.length-1; r++){ // skip header
+    for(let r=0; r<tbl.rows.length-1; r++){
       const rowData = [];
       const cells = tbl.rows[r+1].cells;
       for(let c=0; c<cells.length; c++){
@@ -477,6 +498,12 @@ function importData(i){
     location.reload();
   };
   r.readAsText(i.files[0]);
+}
+
+// ======== Ordner-Upload Toggle ========
+function toggleUploadForm(){
+  const container = document.getElementById("uploadFormContainer");
+  container.classList.toggle("hidden");
 }
 </script>
 </body>
